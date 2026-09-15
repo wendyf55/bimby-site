@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BIMBY — Map</title>
+
+  <!-- 1. Load Leaflet's CSS and JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- 2. The map box MUST have a height, or nothing shows -->
+  <style>
+    body { margin: 0; }
+    #map { height: 100vh; }  /* 100vh = full height of the browser window */
+  </style>
+</head>
+<body>
+
+  <!-- 3. The box the map draws into -->
+  <div id="map"></div>
+
+  <!-- 4. Create the map -->
+  <script>
+    // Center on Canada, zoom level 4
+    const map = L.map('map').setView([62.0, -96.0], 4);
+
+    // Add the OpenStreetMap background tiles (free, no API key)
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+  </script>
+
+</body>
+</html>
