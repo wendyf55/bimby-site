@@ -6,43 +6,231 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BIMBY — Map</title>
 
-  <!-- Load Leaflet's CSS and JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- The map box MUST have a height, or nothing shows -->
   <style>
     body {
       margin: 0;
+      font-family: system-ui, sans-serif;
     }
 
-    #map {
+    #layout {
+      display: flex;
       height: 100vh;
     }
 
-    /* full height of the browser window */
+    #map {
+      flex: 1;
+    }
+
+    #sidebar {
+      width: 340px;
+      overflow-y: auto;
+      padding: 16px;
+      border-left: 1px solid #ddd;
+      box-sizing: border-box;
+    }
+
+    .hint {
+      color: #666;
+    }
+
+    .species {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .species:hover {
+      background: #eef5ee;
+    }
+
+    .sci {
+      font-style: italic;
+      color: #666;
+      font-size: 0.85em;
+    }
+
+    .back {
+      background: none;
+      border: none;
+      color: #3a7d44;
+      cursor: pointer;
+      padding: 0;
+      margin-bottom: 12px;
+      font-size: 0.9em;
+    }
+
+    h3 {
+      margin: 14px 0 4px;
+      color: #3a7d44;
+      font-size: 0.95em;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    li {
+      margin-bottom: 3px;
+    }
+
+    .bloom {
+      color: #888;
+      font-size: 0.85em;
+    }
+
+    select {
+      width: 100%;
+      padding: 6px;
+      margin: 6px 0 4px;
+    }
+
+    .source {
+      font-size: 0.75em;
+      color: #888;
+      margin-top: 16px;
+      border-top: 1px solid #eee;
+      padding-top: 8px;
+    }
+
+    .source a {
+      color: #888;
+    }
   </style>
 </head>
 
 <body>
 
-  <!-- The box the map draws into -->
-  <div id="map"></div>
+  <div id="layout">
+    <div id="map"></div>
+    <div id="sidebar">
+      <p class="hint">Click the map to find butterflies within 15 km.</p>
+    </div>
+  </div>
 
-  <!-- Create the map -->
   <script>
-    // Center on Canada, zoom level 4
-    const map = L.map('map').setView([62.0, -96.0], 4);
+    const RADIUS_M = 15000; // 15 km in meters
 
-    // Standard OpenStreetMap tiles — UBC's network resolves these fine
+    const map = L.map('map').setView([62.0, -96.0], 4);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    // Add a marker at UBC, with a popup you can click
-    const marker = L.marker([49, -123]).addTo(map);
-    marker.bindPopup('test pin');
+    const pinIcon = L.icon({
+      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+      iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
+    });
+
+    const sidebar = document.getElementById('sidebar');
+
+    // --- Data ---
+    let observations = [];
+    let plantIndex = {};   // scientificName -> [ list, list, ... ]
+
+    Promise.all([
+      fetch('data/observations.json').then(r => r.json()),
+      fetch('data/plant-lists.json').then(r => r.json())
+    ]).then(([obs, lists]) => {
+      observations = obs;
+      // Group plant lists by the butterfly species they apply to
+      for (const list of lists) {
+        const key = list.butterfly.scientificName;
+        (plantIndex[key] = plantIndex[key] || []).push(list);
+      }
+      console.log(`Loaded ${observations.length} observations, ${lists.length} plant lists.`);
+    }).catch(err => {
+      sidebar.innerHTML = '<p class="hint">Could not load data files. Check data/observations.json and data/plant-lists.json.</p>';
+      console.error(err);
+    });
+
+    // --- Click: pin + circle + find species within 15 km ---
+    let clickedMarker = null, radiusCircle = null;
+
+    map.on('click', (e) => {
+      const point = e.latlng;
+      if (clickedMarker) clickedMarker.remove();
+      if (radiusCircle) radiusCircle.remove();
+      clickedMarker = L.marker(point, { icon: pinIcon }).addTo(map);
+      radiusCircle = L.circle(point, { radius: RADIUS_M, color: '#3a7d44', fillOpacity: 0.1 }).addTo(map);
+
+      const nearby = observations.filter(o =>
+        map.distance(point, L.latLng(o.lat, o.lng)) <= RADIUS_M);
+
+      const speciesSet = new Map();
+      for (const o of nearby) if (!speciesSet.has(o.scientificName)) speciesSet.set(o.scientificName, o);
+      renderList([...speciesSet.values()]);
+    });
+
+    // --- Species list ---
+    function renderList(species) {
+      if (species.length === 0) {
+        sidebar.innerHTML = '<p class="hint">No butterflies found within 15 km. Try another spot.</p>';
+        return;
+      }
+      species.sort((a, b) => a.commonName.localeCompare(b.commonName));
+      sidebar.innerHTML =
+        `<p class="hint">${species.length} species within 15 km:</p>` +
+        species.map(s => `
+          <div class="species" data-name="${s.scientificName}">
+            <div>${s.commonName || s.scientificName}</div>
+            <div class="sci">${s.scientificName}</div>
+          </div>`).join('');
+      sidebar.querySelectorAll('.species').forEach(el =>
+        el.addEventListener('click', () => renderDetail(el.dataset.name, species)));
+    }
+
+    // --- Species detail, with the "options for viewing" selector ---
+    function renderDetail(scientificName, speciesList) {
+      const lists = plantIndex[scientificName] || [];
+      const common = (speciesList.find(s => s.scientificName === scientificName) || {}).commonName || scientificName;
+
+      let html = `<button class="back">&larr; Back</button>
+                  <h2 style="margin:0">${common}</h2>
+                  <div class="sci">${scientificName}</div>`;
+
+      if (lists.length === 0) {
+        html += `<p class="hint" style="margin-top:12px">No plant data recorded for this species yet.</p>`;
+        sidebar.innerHTML = html;
+      } else {
+        // If more than one list, offer a dropdown to choose which to view
+        if (lists.length > 1) {
+          html += `<label class="hint">View list:</label>
+                   <select id="listPicker">` +
+            lists.map((l, i) => `<option value="${i}">${l.region}</option>`).join('') +
+            `</select>`;
+        }
+        html += `<div id="listBody"></div>`;
+        sidebar.innerHTML = html;
+
+        const renderBody = (i) => {
+          const l = lists[i];
+          const hosts = l.plants.filter(p => p.isHost);
+          const nectar = l.plants.filter(p => !p.isHost);
+          const plantLi = p => `<li>${p.commonName}
+              <span class="sci">(${p.scientificName})</span>
+              ${p.bloom ? `<span class="bloom"> · ${p.bloom}</span>` : ''}</li>`;
+          document.getElementById('listBody').innerHTML = `
+            <p class="hint" style="margin-top:8px">Region: ${l.region}</p>
+            ${hosts.length ? `<h3>🌱 Host plants</h3><ul>${hosts.map(plantLi).join('')}</ul>` : ''}
+            <h3>🌸 Nectar plants</h3><ul>${nectar.map(plantLi).join('')}</ul>
+            <div class="source">Source: ${l.source.org}, “${l.source.title}” (${l.source.year}).
+              <a href="${l.source.url}" target="_blank" rel="noopener">Link</a></div>`;
+        };
+        renderBody(0);
+        const picker = document.getElementById('listPicker');
+        if (picker) picker.addEventListener('change', () => renderBody(Number(picker.value)));
+      }
+
+      sidebar.querySelector('.back').addEventListener('click', () => renderList(speciesList));
+    }
   </script>
 
 </body>
