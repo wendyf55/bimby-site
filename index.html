@@ -10,227 +10,404 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
+    :root {
+      /* Tonal green family */
+      --green-900: #22301b;   /* settings footer (deepest) */
+      --green-800: #33472a;   /* sidebar base */
+      --green-700: #3e5433;   /* surfaces / hover */
+      --line:      rgba(255, 255, 255, 0.13);
+
+      /* Text */
+      --ink:     #f4f6f0;
+      --ink-dim: rgba(244, 246, 240, 0.60);
+
+      /* Single warm accent (monarch amber) for all active states */
+      --accent:      #e79a3c;
+      --accent-ink:  #2b1d06;
+
+      /* Neutral translucent button surface */
+      --surface:       rgba(255, 255, 255, 0.10);
+      --surface-hover: rgba(255, 255, 255, 0.18);
+
+      --sidebar-w: 440px;
+    }
+
+    * { box-sizing: border-box; }
+
     body {
       margin: 0;
-      font-family: system-ui, sans-serif;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
     }
 
-    #layout {
-      display: flex;
-      height: 100vh;
-    }
-
-    #map {
-      flex: 1;
-    }
+    #layout { display: flex; height: 100vh; }
 
     #sidebar {
-      width: 340px;
-      overflow-y: auto;
-      padding: 16px;
-      border-left: 1px solid #ddd;
-      box-sizing: border-box;
+      width: var(--sidebar-w);
+      flex: 0 0 var(--sidebar-w);
+      background: var(--green-800);
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      box-shadow: 2px 0 12px rgba(0, 0, 0, 0.18);
+      z-index: 1000;
     }
 
-    .hint {
-      color: #666;
+    #map { flex: 1; height: 100%; }
+
+    /* App header */
+    .app-head {
+      padding: 16px 18px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .app-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+    }
+    .app-sub {
+      font-size: 12px;
+      color: var(--ink-dim);
+      margin-top: 2px;
+      letter-spacing: 0.02em;
     }
 
-    .species {
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      margin-bottom: 8px;
+    /* Main scroll area */
+    #main { flex: 1 1 0; overflow-y: auto; padding: 0 18px 18px; }
+    #main::-webkit-scrollbar { width: 8px; }
+    #main::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 4px; }
+
+    .hint { color: var(--ink-dim); font-size: 0.9em; padding-top: 16px; line-height: 1.5; }
+
+    /* Sticky column header */
+    .col-head {
+      position: sticky;
+      top: 0;
+      background: var(--green-800);
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 16px 0 10px;
+      margin-bottom: 2px;
+      border-bottom: 1px solid var(--line);
+      z-index: 2;
+    }
+    .col-head .h-bf { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+    .col-head .h-pl { font-size: 11px; font-weight: 600; text-transform: uppercase;
+                      letter-spacing: 0.12em; color: var(--ink-dim); }
+
+    /* Butterfly rows */
+    .bf-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 4px;
+      border-bottom: 1px solid var(--line);
+    }
+    .bf-row:hover { background: var(--surface); }
+    .bf-name { flex: 1; min-width: 0; cursor: pointer; }
+    .bf-common { display: block; font-size: 16px; font-weight: 600; line-height: 1.25; }
+    .bf-sci { display: block; font-style: italic; color: var(--ink-dim); font-size: 13px; margin-top: 1px; }
+
+    .plants-cell { display: flex; gap: 8px; flex: 0 0 auto; }
+
+    /* Neutral action buttons (list rows) */
+    .toggle-btn {
+      background: var(--surface);
+      color: var(--ink);
+      border: 1px solid transparent;
+      padding: 7px 14px;
+      border-radius: 999px;
       cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      transition: background 0.12s, border-color 0.12s;
     }
+    .toggle-btn:hover { background: var(--surface-hover); border-color: var(--accent); }
 
-    .species:hover {
-      background: #eef5ee;
+    /* Segmented control (plant view) */
+    .seg {
+      display: inline-flex;
+      border: 1px solid rgba(255, 255, 255, 0.30);
+      border-radius: 999px;
+      overflow: hidden;
     }
-
-    .sci {
-      font-style: italic;
-      color: #666;
-      font-size: 0.85em;
-    }
-
-    .back {
-      background: none;
+    .seg button {
+      background: transparent;
+      color: var(--ink-dim);
       border: none;
-      color: #3a7d44;
+      padding: 7px 18px;
       cursor: pointer;
-      padding: 0;
-      margin-bottom: 12px;
-      font-size: 0.9em;
+      font-size: 13px;
+      font-family: inherit;
+      transition: background 0.12s, color 0.12s;
+    }
+    .seg button + button { border-left: 1px solid rgba(255, 255, 255, 0.30); }
+    .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+
+    /* Plant view */
+    .back {
+      background: none; border: none; color: var(--ink-dim); cursor: pointer;
+      padding: 14px 0 6px; font-size: 13px; font-family: inherit;
+    }
+    .back:hover { color: var(--ink); }
+    .plant-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
+    #main ul { margin: 12px 0 0; padding-left: 20px; }
+    #main li { margin-bottom: 6px; line-height: 1.4; }
+    .bloom { color: var(--ink-dim); font-size: 0.85em; }
+    .source { font-size: 12px; color: var(--ink-dim); margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); line-height: 1.5; }
+    .source a { color: var(--accent); text-decoration: none; }
+    .source a:hover { text-decoration: underline; }
+
+    /* Settings footer */
+    #settings { flex: 0 0 auto; background: var(--green-900); border-top: 1px solid var(--line); }
+    .settings-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; cursor: pointer; user-select: none;
+      font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    .settings-head .chev { transition: transform 0.15s; color: var(--ink-dim); }
+    .settings-head.collapsed .chev { transform: rotate(-90deg); }
+    .settings-body { padding: 0 18px 16px; }
+    .settings-body.hidden { display: none; }
+    .settings-body label {
+      display: block; margin: 12px 0 6px;
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--ink-dim);
     }
 
-    h3 {
-      margin: 14px 0 4px;
-      color: #3a7d44;
-      font-size: 0.95em;
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid rgba(255, 255, 255, 0.30);
+      padding: 6px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
     }
+    .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 
-    ul {
-      margin: 0;
-      padding-left: 18px;
-    }
-
-    li {
-      margin-bottom: 3px;
-    }
-
-    .bloom {
-      color: #888;
-      font-size: 0.85em;
-    }
-
-    select {
-      width: 100%;
-      padding: 6px;
-      margin: 6px 0 4px;
-    }
-
-    .source {
-      font-size: 0.75em;
-      color: #888;
-      margin-top: 16px;
-      border-top: 1px solid #eee;
-      padding-top: 8px;
-    }
-
-    .source a {
-      color: #888;
-    }
+    .radius-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+    .radius-row input[type=range] { flex: 1; accent-color: var(--accent); }
+    .radius-val { min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; }
   </style>
 </head>
 
 <body>
 
   <div id="layout">
-    <div id="map"></div>
-    <div id="sidebar">
-      <p class="hint">Click the map to find butterflies within 15 km.</p>
+    <div id="sidebar">      <div id="main">
+        <p class="hint">Click the map to find butterflies near a spot.</p>
+      </div>
+      <div id="settings">
+        <div class="settings-head" id="settingsHead">
+          <span>Options</span><span class="chev">▾</span>
+        </div>
+        <div class="settings-body" id="settingsBody">
+          <label>Butterfly Occurrence Sources</label>
+          <div class="chips" id="occChips"></div>
+          <label>Associated Plant Sources</label>
+          <div class="chips" id="plantChips"></div>
+          <label>Point Radius Distance</label>
+          <div class="radius-row">
+            <input type="range" id="radiusSlider" min="1" max="50" value="15" />
+            <span class="radius-val" id="radiusVal">15 km</span>
+          </div>
+        </div>
+      </div>
     </div>
+    <div id="map"></div>
   </div>
 
   <script>
-    const RADIUS_M = 15000; // 15 km in meters
+    // ---------- State ----------
+    let radiusM = 15000;
+    let observations = [], plantLists = [], plantIndex = {};
+    let selectedPoint = null, currentSpecies = [];
+    let viewMode = 'list';
+    let activeButterfly = null, activeCategory = 'host';   // default category
+    let enabledPlantSources = new Set();
+    const OCC_SOURCES = [{ id: 'inat-bimby', label: 'iNaturalist (BIMBY)' }];
+    let enabledOccSources = new Set(OCC_SOURCES.map(s => s.id));
 
+    // ---------- Map ----------
     const map = L.map('map').setView([62.0, -96.0], 4);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
-
     const pinIcon = L.icon({
       iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
       iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
       shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
       iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
     });
+    let clickedMarker = null, radiusCircle = null;
 
-    const sidebar = document.getElementById('sidebar');
-
-    // --- Data ---
-    let observations = [];
-    let plantIndex = {};   // scientificName -> [ list, list, ... ]
-
+    // ---------- Load data ----------
     Promise.all([
       fetch('data/observations.json').then(r => r.json()),
       fetch('data/plant-lists.json').then(r => r.json())
     ]).then(([obs, lists]) => {
-      observations = obs;
-      // Group plant lists by the butterfly species they apply to
-      for (const list of lists) {
-        const key = list.butterfly.scientificName;
-        (plantIndex[key] = plantIndex[key] || []).push(list);
-      }
-      console.log(`Loaded ${observations.length} observations, ${lists.length} plant lists.`);
+      observations = obs; plantLists = lists;
+      for (const l of lists) (plantIndex[l.butterfly.scientificName] ??= []).push(l);
+      enabledPlantSources = new Set(lists.map(l => l.id));
+      buildChips();
     }).catch(err => {
-      sidebar.innerHTML = '<p class="hint">Could not load data files. Check data/observations.json and data/plant-lists.json.</p>';
+      document.getElementById('main').innerHTML = '<p class="hint">Could not load data files.</p>';
       console.error(err);
     });
 
-    // --- Click: pin + circle + find species within 15 km ---
-    let clickedMarker = null, radiusCircle = null;
+    // ---------- Map click ----------
+    map.on('click', (e) => { selectedPoint = e.latlng; drawPin(); runQuery(); });
 
-    map.on('click', (e) => {
-      const point = e.latlng;
+    function drawPin() {
+      if (!selectedPoint) return;
       if (clickedMarker) clickedMarker.remove();
       if (radiusCircle) radiusCircle.remove();
-      clickedMarker = L.marker(point, { icon: pinIcon }).addTo(map);
-      radiusCircle = L.circle(point, { radius: RADIUS_M, color: '#3a7d44', fillOpacity: 0.1 }).addTo(map);
-
-      const nearby = observations.filter(o =>
-        map.distance(point, L.latLng(o.lat, o.lng)) <= RADIUS_M);
-
-      const speciesSet = new Map();
-      for (const o of nearby) if (!speciesSet.has(o.scientificName)) speciesSet.set(o.scientificName, o);
-      renderList([...speciesSet.values()]);
-    });
-
-    // --- Species list ---
-    function renderList(species) {
-      if (species.length === 0) {
-        sidebar.innerHTML = '<p class="hint">No butterflies found within 15 km. Try another spot.</p>';
-        return;
-      }
-      species.sort((a, b) => a.commonName.localeCompare(b.commonName));
-      sidebar.innerHTML =
-        `<p class="hint">${species.length} species within 15 km:</p>` +
-        species.map(s => `
-          <div class="species" data-name="${s.scientificName}">
-            <div>${s.commonName || s.scientificName}</div>
-            <div class="sci">${s.scientificName}</div>
-          </div>`).join('');
-      sidebar.querySelectorAll('.species').forEach(el =>
-        el.addEventListener('click', () => renderDetail(el.dataset.name, species)));
+      clickedMarker = L.marker(selectedPoint, { icon: pinIcon }).addTo(map);
+      radiusCircle = L.circle(selectedPoint, { radius: radiusM, color: '#e79a3c', fillColor: '#e79a3c', fillOpacity: 0.12, weight: 2 }).addTo(map);
     }
 
-    // --- Species detail, with the "options for viewing" selector ---
-    function renderDetail(scientificName, speciesList) {
-      const lists = plantIndex[scientificName] || [];
-      const common = (speciesList.find(s => s.scientificName === scientificName) || {}).commonName || scientificName;
+    function runQuery() {
+      if (!selectedPoint) return;
+      const nearby = observations.filter(o =>
+        map.distance(selectedPoint, L.latLng(o.lat, o.lng)) <= radiusM);
+      const set = new Map();
+      for (const o of nearby) if (!set.has(o.scientificName)) set.set(o.scientificName, o);
+      currentSpecies = [...set.values()].sort((a, b) =>
+        (a.commonName || a.scientificName).localeCompare(b.commonName || b.scientificName));
+      viewMode = 'list'; activeButterfly = null;
+      renderMain();
+    }
 
-      let html = `<button class="back">&larr; Back</button>
-                  <h2 style="margin:0">${common}</h2>
-                  <div class="sci">${scientificName}</div>`;
+    function enabledListsFor(name) {
+      return (plantIndex[name] || []).filter(l => enabledPlantSources.has(l.id));
+    }
+
+    // ---------- Render ----------
+    function renderMain() { viewMode === 'plants' ? renderPlantView() : renderListView(); }
+
+    // View A: butterfly list (Host/Nectar always shown)
+    function renderListView() {
+      const box = document.getElementById('main');
+      if (!selectedPoint) { box.innerHTML = '<p class="hint">Click the map to find butterflies near a spot.</p>'; return; }
+      if (currentSpecies.length === 0) { box.innerHTML = '<p class="hint">No butterflies found in range. Try a bigger radius or another spot.</p>'; return; }
+
+      box.innerHTML = `<div class="col-head"><span class="h-bf">Butterflies</span><span class="h-pl">Plants</span></div>` +
+        currentSpecies.map(s => `
+          <div class="bf-row" data-name="${s.scientificName}">
+            <span class="bf-name">
+              <span class="bf-common">${s.commonName || s.scientificName}</span>
+              <span class="bf-sci">${s.scientificName}</span>
+            </span>
+            <span class="plants-cell">
+              <button class="toggle-btn" data-cat="host">Host</button>
+              <button class="toggle-btn" data-cat="nectar">Nectar</button>
+            </span>
+          </div>`).join('');
+
+      box.querySelectorAll('.toggle-btn').forEach(btn =>
+        btn.addEventListener('click', () => {
+          activeButterfly = btn.closest('.bf-row').dataset.name;
+          activeCategory = btn.dataset.cat; viewMode = 'plants'; renderMain();
+        }));
+      box.querySelectorAll('.bf-name').forEach(el =>
+        el.addEventListener('click', () => {
+          activeButterfly = el.closest('.bf-row').dataset.name;
+          viewMode = 'plants'; renderMain();     // opens with current activeCategory
+        }));
+    }
+
+    // View B: plant list with a clear segmented Host/Nectar control
+    function renderPlantView() {
+      const box = document.getElementById('main');
+      const sp = currentSpecies.find(s => s.scientificName === activeButterfly) || {};
+      const lists = enabledListsFor(activeButterfly);
+
+      let html = `<button class="back">&larr; Back to butterflies</button>
+        <div class="plant-head">
+          <span class="bf-name">
+            <span class="bf-common">${sp.commonName || activeButterfly}</span>
+            <span class="bf-sci">${activeButterfly}</span>
+          </span>
+          <span class="seg">
+            <button class="${activeCategory === 'host' ? 'on' : ''}" data-cat="host">Host</button>
+            <button class="${activeCategory === 'nectar' ? 'on' : ''}" data-cat="nectar">Nectar</button>
+          </span>
+        </div>`;
 
       if (lists.length === 0) {
-        html += `<p class="hint" style="margin-top:12px">No plant data recorded for this species yet.</p>`;
-        sidebar.innerHTML = html;
+        html += '<p class="hint">No plant data for this species from the selected sources.</p>';
       } else {
-        // If more than one list, offer a dropdown to choose which to view
-        if (lists.length > 1) {
-          html += `<label class="hint">View list:</label>
-                   <select id="listPicker">` +
-            lists.map((l, i) => `<option value="${i}">${l.region}</option>`).join('') +
-            `</select>`;
-        }
-        html += `<div id="listBody"></div>`;
-        sidebar.innerHTML = html;
-
-        const renderBody = (i) => {
-          const l = lists[i];
-          const hosts = l.plants.filter(p => p.isHost);
-          const nectar = l.plants.filter(p => !p.isHost);
-          const plantLi = p => `<li>${p.commonName}
-              <span class="sci">(${p.scientificName})</span>
-              ${p.bloom ? `<span class="bloom"> · ${p.bloom}</span>` : ''}</li>`;
-          document.getElementById('listBody').innerHTML = `
-            <p class="hint" style="margin-top:8px">Region: ${l.region}</p>
-            ${hosts.length ? `<h3>🌱 Host plants</h3><ul>${hosts.map(plantLi).join('')}</ul>` : ''}
-            <h3>🌸 Nectar plants</h3><ul>${nectar.map(plantLi).join('')}</ul>
-            <div class="source">Source: ${l.source.org}, “${l.source.title}” (${l.source.year}).
-              <a href="${l.source.url}" target="_blank" rel="noopener">Link</a></div>`;
-        };
-        renderBody(0);
-        const picker = document.getElementById('listPicker');
-        if (picker) picker.addEventListener('change', () => renderBody(Number(picker.value)));
+        const seen = new Map();
+        for (const l of lists)
+          for (const p of l.plants)
+            if ((activeCategory === 'host') === !!p.isHost && !seen.has(p.scientificName)) seen.set(p.scientificName, p);
+        const plants = [...seen.values()];
+        html += plants.length
+          ? `<ul>${plants.map(p => `<li>${p.commonName} <span class="bf-sci" style="display:inline">(${p.scientificName})</span>${p.bloom ? ` <span class="bloom">&middot; ${p.bloom}</span>` : ''}</li>`).join('')}</ul>`
+          : `<p class="hint">None listed as ${activeCategory} plants here.</p>`;
+        const srcs = [...new Map(lists.map(l => [l.source.url, l.source])).values()];
+        html += `<div class="source">Sources: ${srcs.map(s => `<a href="${s.url}" target="_blank" rel="noopener">${shortSource(s.org)} (${s.year})</a>`).join('; ')}</div>`;
       }
+      box.innerHTML = html;
 
-      sidebar.querySelector('.back').addEventListener('click', () => renderList(speciesList));
+      box.querySelector('.back').addEventListener('click', () => { viewMode = 'list'; renderMain(); });
+      box.querySelectorAll('.seg button').forEach(btn =>
+        btn.addEventListener('click', () => { activeCategory = btn.dataset.cat; renderPlantView(); }));
     }
+
+    function shortSource(org) { return /xerces/i.test(org) ? 'Xerces Society' : org; }
+
+    // ---------- Settings: chips (plant chips grouped by source org) ----------
+    function buildChips() {
+      const occ = document.getElementById('occChips');
+      occ.innerHTML = OCC_SOURCES.map(s =>
+        `<button class="chip ${enabledOccSources.has(s.id) ? 'on' : ''}" data-id="${s.id}">${s.label}</button>`).join('');
+      occ.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+        toggle(enabledOccSources, c.dataset.id); c.classList.toggle('on');
+      }));
+
+      // Group plant lists by source org so there's one chip per source (e.g. "Xerces Society")
+      const byOrg = {};
+      for (const l of plantLists) (byOrg[l.source.org] ??= []).push(l.id);
+
+      const plant = document.getElementById('plantChips');
+      plant.innerHTML = Object.entries(byOrg).map(([org, ids]) => {
+        const on = ids.some(id => enabledPlantSources.has(id));
+        return `<button class="chip ${on ? 'on' : ''}" data-ids="${ids.join(',')}">${shortSource(org)}</button>`;
+      }).join('');
+      plant.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+        const ids = c.dataset.ids.split(',');
+        const turnOn = !ids.some(id => enabledPlantSources.has(id));   // if any on -> turn all off, else on
+        ids.forEach(id => turnOn ? enabledPlantSources.add(id) : enabledPlantSources.delete(id));
+        c.classList.toggle('on', turnOn);
+        renderMain();
+      }));
+    }
+    function toggle(set, id) { set.has(id) ? set.delete(id) : set.add(id); }
+
+    // ---------- Settings: collapse + radius ----------
+    document.getElementById('settingsHead').addEventListener('click', () => {
+      document.getElementById('settingsHead').classList.toggle('collapsed');
+      document.getElementById('settingsBody').classList.toggle('hidden');
+    });
+    const slider = document.getElementById('radiusSlider');
+    const radiusVal = document.getElementById('radiusVal');
+    slider.addEventListener('input', () => {
+      radiusM = Number(slider.value) * 1000;
+      radiusVal.textContent = `${slider.value} km`;
+      if (radiusCircle) radiusCircle.setRadius(radiusM);
+    });
+    slider.addEventListener('change', runQuery);
   </script>
 
 </body>
