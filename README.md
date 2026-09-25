@@ -15,12 +15,19 @@ Then open <http://localhost:8000>
 ## Repository structure
 
     index.html                     The whole app (map + interaction)
-    data/
+    option-a.html                  Design option A: browse by ecoregion
+    option-b.html, option-c.html   Design options B, C (placeholders for now)
+    dev-switcher.js                Dev-mode option switcher (open any page with ?dev)
+    data/                          (git-ignored)
       observations.json            Butterfly observations used by the app (generated)
       plant-lists.json             Host/nectar plant lists, one entry per region/source
       observations-782254.csv/     Raw iNaturalist export (kept for provenance)
+      ecoregions.geojson           Simplified ecoregion outlines (generated)
+      observation-ecoregions.json  Observation id -> ecoregion id (generated)
+      raw/                         Ecoregion + ecozone shapefile zips from AAFC
     scripts/
       build_observations.py        Rebuilds observations.json from the raw CSV
+      build_ecoregions.py          Builds the two ecoregion files above
 
 ## Data sources
 
@@ -49,6 +56,21 @@ Then open <http://localhost:8000>
   BC is not literally covered.
 - **Caveat:** these lists are **Monarch-specific**. Plant data for other species
   will need additional sources.
+
+### Ecoregions — National Ecological Framework for Canada (used by option-a.html)
+
+- **Source:** Agriculture and Agri-Food Canada, *A National Ecological Framework for
+  Canada* — ecoregion and ecozone shapefiles, from
+  <https://sis.agr.gc.ca/cansis/nsdb/ecostrat/gis_data.html> (Open Government Licence – Canada).
+- **Contents:** 194 ecoregions (218 polygons) grouped into 15 ecozones, NAD83 lat/long.
+- **Raw files:** `data/raw/ecoregion_shp.zip`, `data/raw/ecozone_shp.zip` (downloaded 2026-09-25).
+- **Pipeline:** `scripts/build_ecoregions.py` (needs `pip install pyshp shapely`,
+  shapely ≥ 2.1) writes:
+  - `data/ecoregions.geojson` — outlines simplified to ~2 km (shared borders kept
+    identical), for the map.
+  - `data/observation-ecoregions.json` — `{observation id: ecoregion id}`. Points
+    just off the coast snap to the nearest ecoregion within ~5 km; a handful outside
+    Canada are left untagged.
 
 ## `plant-lists.json` structure
 

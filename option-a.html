@@ -222,14 +222,59 @@
       background: var(--accent); border: 2px solid var(--green-900);
     }
     .time-val { min-width: 118px; text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; }
+
+    /* ---------- Option A: ecoregions ---------- */
+    .sec-head { display: flex; justify-content: space-between; align-items: baseline;
+                padding: 16px 0 10px; border-bottom: 1px solid var(--line); }
+    .sec-head .h-bf { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+    .sec-head .h-pl { font-size: 11px; font-weight: 600; text-transform: uppercase;
+                      letter-spacing: 0.12em; color: var(--ink-dim); }
+
+    details.zone { border-bottom: 1px solid var(--line); }
+    details.zone summary {
+      list-style: none; cursor: pointer; display: flex; justify-content: space-between;
+      align-items: center; padding: 12px 4px; font-weight: 600;
+    }
+    details.zone summary::-webkit-details-marker { display: none; }
+    details.zone summary::before { content: "▸"; color: var(--ink-dim); margin-right: 8px; transition: transform 0.12s; }
+    details.zone[open] summary::before { transform: rotate(90deg); }
+    details.zone summary .zname { flex: 1; }
+    details.zone summary:hover { background: var(--surface); }
+    .count { font-size: 12px; color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    .region-row {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      padding: 8px 4px 8px 26px; cursor: pointer; font-size: 14px;
+    }
+    .region-row:hover { background: var(--surface); }
+    .region-row.empty { color: var(--ink-dim); }
+    .swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; border: 1px solid rgba(255,255,255,0.35); }
+
+    .region-title { padding: 4px 0 2px; }
+    .region-title .rname { display: block; font-size: 20px; font-weight: 700; line-height: 1.2; }
+    .region-title .rzone { display: block; font-size: 13px; color: var(--ink-dim); margin-top: 2px; }
+    .bf-count { display: block; font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+
+    /* Map legend + tooltip */
+    .legend {
+      background: rgba(255, 255, 255, 0.94); color: #22301b; padding: 8px 10px; border-radius: 6px;
+      font: 12px "Helvetica Neue", Helvetica, Arial, sans-serif; box-shadow: 0 1px 6px rgba(0,0,0,0.25);
+      line-height: 1.5;
+    }
+    .legend b { display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .legend i { display: inline-block; width: 14px; height: 10px; margin-right: 6px; border-radius: 2px;
+                vertical-align: -1px; border: 1px solid rgba(0,0,0,0.2); }
+    .leaflet-tooltip.eco-tip { font: 13px "Helvetica Neue", Helvetica, Arial, sans-serif; }
+    .eco-tip .t-sub { color: #666; font-size: 12px; }
   </style>
 </head>
 
 <body>
 
   <div id="layout">
-    <div id="sidebar">      <div id="main">
-        <p class="hint">Click the map to find butterflies near a spot.</p>
+    <div id="sidebar">
+      <div id="main">
+        <p class="hint">Loading ecoregions…</p>
       </div>
       <div id="settings">
         <div class="settings-head" id="settingsHead">
@@ -240,11 +285,6 @@
           <div class="chips" id="occChips"></div>
           <label>Associated Plant Sources</label>
           <div class="chips" id="plantChips"></div>
-          <label>Point Radius Distance</label>
-          <div class="radius-row">
-            <input type="range" id="radiusSlider" min="1" max="50" value="15" />
-            <span class="radius-val" id="radiusVal">15 km</span>
-          </div>
           <label>Time Period</label>
           <div class="radius-row">
             <div class="range2">
@@ -263,69 +303,128 @@
 
   <script>
     // ---------- State ----------
-    let radiusM = 15000;
     let observations = [], plantLists = [], plantIndex = {};
-    let selectedPoint = null, currentSpecies = [];
-    let viewMode = 'list';
-    let activeButterfly = null, activeCategory = 'host';   // default category
+    let regions = [];                 // GeoJSON features (properties: id, name, zoneId, zoneName)
+    let regionStats = new Map();      // regionId -> Map(scientificName -> {commonName, count})
+    let selectedRegion = null;        // region id
+    let viewMode = 'regions';         // 'regions' | 'list' | 'plants'
+    let currentSpecies = [];
+    let activeButterfly = null, activeCategory = 'host';
     let enabledPlantSources = new Set();
     const OCC_SOURCES = [{ id: 'inat-bimby', label: 'iNaturalist (BIMBY)' }];
     let enabledOccSources = new Set(OCC_SOURCES.map(s => s.id));
-    // Time period (stored as whole days since the earliest observation)
     const DAY_MS = 86400000;
     let baseDateMs = 0, startDay = 0, endDay = 0;
 
+    // Sequential scale: species seen per ecoregion (one hue, light -> dark)
+    const BINS = [
+      { min: 61, color: '#7a3d0a', label: '61+' },
+      { min: 31, color: '#b8691c', label: '31–60' },
+      { min: 16, color: '#e79a3c', label: '16–30' },
+      { min: 6,  color: '#f4bf74', label: '6–15' },
+      { min: 1,  color: '#fbe3bd', label: '1–5' },
+    ];
+    const colorFor = n => (BINS.find(b => n >= b.min) || {}).color || null;
+
     // ---------- Map ----------
-    const map = L.map('map').setView([62.0, -96.0], 4);
+    const map = L.map('map').setView([58.0, -96.0], 4);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        + ' | Ecoregions: <a href="https://sis.agr.gc.ca/cansis/nsdb/ecostrat/" target="_blank" rel="noopener">AAFC</a>'
     }).addTo(map);
-    const pinIcon = L.icon({
-      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-      iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
-    });
-    let clickedMarker = null, radiusCircle = null;
+    let regionLayer = null;
+    const layerById = new Map();
+
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = () => {
+      const d = L.DomUtil.create('div', 'legend');
+      d.innerHTML = '<b>Butterfly species seen</b>' +
+        BINS.map(b => `<div><i style="background:${b.color}"></i>${b.label}</div>`).join('') +
+        '<div><i style="background:transparent"></i>None recorded</div>';
+      return d;
+    };
+    legend.addTo(map);
 
     // ---------- Load data ----------
     Promise.all([
       fetch('data/observations.json').then(r => r.json()),
-      fetch('data/plant-lists.json').then(r => r.json())
-    ]).then(([obs, lists]) => {
-      observations = obs; plantLists = lists;
-      initTimeSlider();
+      fetch('data/plant-lists.json').then(r => r.json()),
+      fetch('data/ecoregions.geojson').then(r => r.json()),
+      fetch('data/observation-ecoregions.json').then(r => r.json()),
+    ]).then(([obs, lists, geo, obsRegion]) => {
+      observations = obs; plantLists = lists; regions = geo.features;
+      for (const o of observations) o._region = obsRegion[o.id] ?? null;
       for (const l of lists) (plantIndex[l.butterfly.scientificName] ??= []).push(l);
       enabledPlantSources = new Set(lists.map(l => l.id));
       buildChips();
+      initTimeSlider();
+      computeStats();
+      drawRegions();
+      renderMain();
     }).catch(err => {
       document.getElementById('main').innerHTML = '<p class="hint">Could not load data files.</p>';
       console.error(err);
     });
 
-    // ---------- Map click ----------
-    map.on('click', (e) => { selectedPoint = e.latlng; drawPin(); runQuery(); });
+    // ---------- Stats (re-run when the time period changes) ----------
+    function computeStats() {
+      regionStats = new Map();
+      for (const o of observations) {
+        if (o._region == null || o._day < startDay || o._day > endDay) continue;
+        let m = regionStats.get(o._region);
+        if (!m) regionStats.set(o._region, m = new Map());
+        const s = m.get(o.scientificName);
+        s ? s.count++ : m.set(o.scientificName, { scientificName: o.scientificName, commonName: o.commonName, count: 1 });
+      }
+    }
+    const speciesCount = id => regionStats.get(id)?.size || 0;
+    const regionById = id => regions.find(f => f.properties.id === id);
 
-    function drawPin() {
-      if (!selectedPoint) return;
-      if (clickedMarker) clickedMarker.remove();
-      if (radiusCircle) radiusCircle.remove();
-      clickedMarker = L.marker(selectedPoint, { icon: pinIcon }).addTo(map);
-      radiusCircle = L.circle(selectedPoint, { radius: radiusM, color: '#e79a3c', fillColor: '#e79a3c', fillOpacity: 0.12, weight: 2 }).addTo(map);
+    // ---------- Region layer ----------
+    function styleFor(f) {
+      const id = f.properties.id, n = speciesCount(id), c = colorFor(n), sel = id === selectedRegion;
+      return {
+        color: sel ? '#22301b' : '#5b6b52', weight: sel ? 3 : 0.8, opacity: sel ? 1 : 0.6,
+        // While a region is selected, fade the others so it stands out
+        fillColor: c || '#ffffff',
+        fillOpacity: !c ? 0.05 : (selectedRegion == null || sel ? 0.75 : 0.3),
+      };
     }
 
-    function runQuery() {
-      if (!selectedPoint) return;
-      const nearby = observations.filter(o =>
-        o._day >= startDay && o._day <= endDay &&
-        map.distance(selectedPoint, L.latLng(o.lat, o.lng)) <= radiusM);
-      const set = new Map();
-      for (const o of nearby) if (!set.has(o.scientificName)) set.set(o.scientificName, o);
-      currentSpecies = [...set.values()].sort((a, b) =>
-        (a.commonName || a.scientificName).localeCompare(b.commonName || b.scientificName));
-      viewMode = 'list'; activeButterfly = null;
+    function drawRegions() {
+      regionLayer = L.geoJSON({ type: 'FeatureCollection', features: regions }, {
+        style: styleFor,
+        onEachFeature: (f, layer) => {
+          layerById.set(f.properties.id, layer);
+          layer.bindTooltip(() => {
+            const n = speciesCount(f.properties.id);
+            return `<b>${f.properties.name}</b><br><span class="t-sub">${f.properties.zoneName} · ` +
+              `${n ? n + ' species' : 'no sightings'}</span>`;
+          }, { sticky: true, className: 'eco-tip' });
+          layer.on('mouseover', () => { if (f.properties.id !== selectedRegion) layer.setStyle({ weight: 2, opacity: 1 }); });
+          layer.on('mouseout', () => regionLayer.resetStyle(layer));
+          layer.on('click', () => selectRegion(f.properties.id, false));
+        }
+      }).addTo(map);
+    }
+
+    function restyleRegions() {
+      regionLayer.setStyle(styleFor);
+      const sel = layerById.get(selectedRegion);
+      if (sel) sel.bringToFront();
+    }
+
+    function selectRegion(id, zoom = true) {
+      selectedRegion = id; viewMode = 'list'; activeButterfly = null;
+      restyleRegions();
+      if (zoom) map.fitBounds(layerById.get(id).getBounds(), { padding: [30, 30] });
       renderMain();
+    }
+
+    function clearRegion() {
+      selectedRegion = null; viewMode = 'regions';
+      restyleRegions(); renderMain();
     }
 
     function enabledListsFor(name) {
@@ -333,27 +432,77 @@
     }
 
     // ---------- Render ----------
-    function renderMain() { viewMode === 'plants' ? renderPlantView() : renderListView(); }
+    function renderMain() {
+      if (viewMode === 'plants') renderPlantView();
+      else if (viewMode === 'list' && selectedRegion != null) renderListView();
+      else renderRegionsView();
+    }
 
-    // View A: butterfly list (Host/Nectar always shown)
+    // View 0: ecozones -> ecoregions
+    function renderRegionsView() {
+      const box = document.getElementById('main');
+      const zones = new Map();
+      for (const f of regions) {
+        const p = f.properties;
+        (zones.get(p.zoneName) || zones.set(p.zoneName, []).get(p.zoneName)).push(p);
+      }
+      const openZones = new Set([...box.querySelectorAll('details.zone[open]')].map(d => d.dataset.zone));
+      const zoneList = [...zones.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+      box.innerHTML = `<div class="sec-head"><span class="h-bf">Ecoregions</span><span class="h-pl">Species</span></div>
+        <p class="hint" style="padding-top:10px">Click a region on the map, or pick one below.</p>` +
+        zoneList.map(([zone, rs]) => {
+          rs.sort((a, b) => a.name.localeCompare(b.name));
+          const withData = rs.filter(r => speciesCount(r.id) > 0).length;
+          return `<details class="zone" data-zone="${zone}" ${openZones.has(zone) ? 'open' : ''}>
+            <summary><span class="zname">${zone}</span><span class="count">${withData}/${rs.length} regions</span></summary>
+            ${rs.map(r => {
+              const n = speciesCount(r.id), c = colorFor(n);
+              return `<div class="region-row ${n ? '' : 'empty'}" data-id="${r.id}">
+                <span style="display:flex;align-items:center;gap:8px;min-width:0">
+                  <span class="swatch" style="background:${c || 'transparent'}"></span>${r.name}</span>
+                <span class="count">${n || '–'}</span></div>`;
+            }).join('')}
+          </details>`;
+        }).join('');
+
+      box.querySelectorAll('.region-row').forEach(el =>
+        el.addEventListener('click', () => selectRegion(Number(el.dataset.id))));
+    }
+
+    // View A: butterflies in the selected ecoregion
     function renderListView() {
       const box = document.getElementById('main');
-      if (!selectedPoint) { box.innerHTML = '<p class="hint">Click the map to find butterflies near a spot.</p>'; return; }
-      if (currentSpecies.length === 0) { box.innerHTML = '<p class="hint">No butterflies found in range. Try a bigger radius, a wider time period, or another spot.</p>'; return; }
+      const p = regionById(selectedRegion).properties;
+      const stats = regionStats.get(selectedRegion);
+      currentSpecies = stats ? [...stats.values()].sort((a, b) =>
+        (a.commonName || a.scientificName).localeCompare(b.commonName || b.scientificName)) : [];
 
-      box.innerHTML = `<div class="col-head"><span class="h-bf">Butterflies</span><span class="h-pl">Plants</span></div>` +
-        currentSpecies.map(s => `
-          <div class="bf-row" data-name="${s.scientificName}">
-            <span class="bf-name">
-              <span class="bf-common">${s.commonName || s.scientificName}</span>
-              <span class="bf-sci">${s.scientificName}</span>
-            </span>
-            <span class="plants-cell">
-              <button class="toggle-btn" data-cat="host">Host</button>
-              <button class="toggle-btn" data-cat="nectar">Nectar</button>
-            </span>
-          </div>`).join('');
+      let html = `<button class="back">&larr; All ecoregions</button>
+        <div class="region-title"><span class="rname">${p.name}</span>
+          <span class="rzone">${p.zoneName} ecozone · ${currentSpecies.length} species</span></div>`;
 
+      if (!currentSpecies.length) {
+        html += '<p class="hint">No butterflies recorded here in this time period. Try widening the time period.</p>';
+      } else {
+        html += `<div class="col-head"><span class="h-bf">Butterflies</span><span class="h-pl">Plants</span></div>` +
+          currentSpecies.map(s => `
+            <div class="bf-row" data-name="${s.scientificName}">
+              <span class="bf-name">
+                <span class="bf-common">${s.commonName || s.scientificName}</span>
+                <span class="bf-sci">${s.scientificName}</span>
+                <span class="bf-count">${s.count} sighting${s.count === 1 ? '' : 's'}</span>
+              </span>
+              <span class="plants-cell">
+                <button class="toggle-btn" data-cat="host">Host</button>
+                <button class="toggle-btn" data-cat="nectar">Nectar</button>
+              </span>
+            </div>`).join('');
+      }
+      box.innerHTML = html;
+      box.scrollTop = 0;
+
+      box.querySelector('.back').addEventListener('click', clearRegion);
       box.querySelectorAll('.toggle-btn').forEach(btn =>
         btn.addEventListener('click', () => {
           activeButterfly = btn.closest('.bf-row').dataset.name;
@@ -362,11 +511,11 @@
       box.querySelectorAll('.bf-name').forEach(el =>
         el.addEventListener('click', () => {
           activeButterfly = el.closest('.bf-row').dataset.name;
-          viewMode = 'plants'; renderMain();     // opens with current activeCategory
+          viewMode = 'plants'; renderMain();
         }));
     }
 
-    // View B: plant list with a clear segmented Host/Nectar control
+    // View B: plant list for one butterfly
     function renderPlantView() {
       const box = document.getElementById('main');
       const sp = currentSpecies.find(s => s.scientificName === activeButterfly) || {};
@@ -407,7 +556,7 @@
 
     function shortSource(org) { return /xerces/i.test(org) ? 'Xerces Society' : org; }
 
-    // ---------- Settings: chips (plant chips grouped by source org) ----------
+    // ---------- Settings: chips ----------
     function buildChips() {
       const occ = document.getElementById('occChips');
       occ.innerHTML = OCC_SOURCES.map(s =>
@@ -416,10 +565,8 @@
         toggle(enabledOccSources, c.dataset.id); c.classList.toggle('on');
       }));
 
-      // Group plant lists by source org so there's one chip per source (e.g. "Xerces Society")
       const byOrg = {};
       for (const l of plantLists) (byOrg[l.source.org] ??= []).push(l.id);
-
       const plant = document.getElementById('plantChips');
       plant.innerHTML = Object.entries(byOrg).map(([org, ids]) => {
         const on = ids.some(id => enabledPlantSources.has(id));
@@ -427,7 +574,7 @@
       }).join('');
       plant.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
         const ids = c.dataset.ids.split(',');
-        const turnOn = !ids.some(id => enabledPlantSources.has(id));   // if any on -> turn all off, else on
+        const turnOn = !ids.some(id => enabledPlantSources.has(id));
         ids.forEach(id => turnOn ? enabledPlantSources.add(id) : enabledPlantSources.delete(id));
         c.classList.toggle('on', turnOn);
         renderMain();
@@ -435,19 +582,11 @@
     }
     function toggle(set, id) { set.has(id) ? set.delete(id) : set.add(id); }
 
-    // ---------- Settings: collapse + radius ----------
+    // ---------- Settings: collapse ----------
     document.getElementById('settingsHead').addEventListener('click', () => {
       document.getElementById('settingsHead').classList.toggle('collapsed');
       document.getElementById('settingsBody').classList.toggle('hidden');
     });
-    const slider = document.getElementById('radiusSlider');
-    const radiusVal = document.getElementById('radiusVal');
-    slider.addEventListener('input', () => {
-      radiusM = Number(slider.value) * 1000;
-      radiusVal.textContent = `${slider.value} km`;
-      if (radiusCircle) radiusCircle.setRadius(radiusM);
-    });
-    slider.addEventListener('change', runQuery);
 
     // ---------- Settings: time period ----------
     const timeStart = document.getElementById('timeStart');
@@ -480,9 +619,14 @@
       const fill = document.getElementById('timeFill');
       fill.style.left = `calc(8px + (100% - 16px) * ${startDay / max})`;
       fill.style.width = `calc((100% - 16px) * ${(endDay - startDay) / max})`;
-      // If both handles sit at the far right, keep the start handle grabbable
       timeStart.style.zIndex = startDay > max - 1 ? 3 : 1;
       timeEnd.style.zIndex = 2;
+    }
+
+    function onTimeChange() {
+      computeStats(); restyleRegions();
+      if (viewMode === 'plants') viewMode = 'list';
+      renderMain();
     }
 
     timeStart.addEventListener('input', () => {
@@ -493,8 +637,8 @@
       endDay = Math.max(Number(timeEnd.value), startDay);
       timeEnd.value = endDay; updateTimeUI();
     });
-    timeStart.addEventListener('change', runQuery);
-    timeEnd.addEventListener('change', runQuery);
+    timeStart.addEventListener('change', onTimeChange);
+    timeEnd.addEventListener('change', onTimeChange);
   </script>
 
   <script src="dev-switcher.js"></script>
