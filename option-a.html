@@ -265,6 +265,22 @@
     .legend b { display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
     .legend i { display: inline-block; width: 14px; height: 10px; margin-right: 6px; border-radius: 2px;
                 vertical-align: -1px; border: 1px solid rgba(0,0,0,0.2); }
+    /* "Show on map" for one species */
+    .map-sp-btn {
+      display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 14px;
+      background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px;
+      padding: 7px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .map-sp-btn:hover { filter: brightness(1.08); }
+    .map-sp-btn.on { background: var(--surface); color: var(--ink); font-weight: 400; }
+    .sp-banner {
+      background: #22301b; color: #f4f6f0; padding: 8px 12px; border-radius: 8px;
+      font: 13px "Helvetica Neue", Helvetica, Arial, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sp-banner button { background: rgba(255,255,255,0.15); color: inherit; border: 0; border-radius: 6px;
+                        padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+    .sp-banner button:hover { background: rgba(255,255,255,0.28); }
     .leaflet-tooltip.eco-tip { font: 13px "Helvetica Neue", Helvetica, Arial, sans-serif; }
     .eco-tip .t-sub { color: #666; font-size: 12px; }
   </style>
@@ -308,6 +324,7 @@
     let regions = [];                 // GeoJSON features (properties: id, name, zoneId, zoneName)
     let regionStats = new Map();      // regionId -> Map(scientificName -> {commonName, count})
     let selectedRegion = null;        // region id
+    let mappedSpecies = null;         // when set, the map shows sightings of this one species
     let viewMode = 'regions';         // 'regions' | 'list' | 'plants'
     let currentSpecies = [];
     let activeButterfly = null, activeCategory = 'host';
@@ -325,7 +342,16 @@
       { min: 6,  color: '#f4bf74', label: '6–15' },
       { min: 1,  color: '#fbe3bd', label: '1–5' },
     ];
-    const colorFor = n => (BINS.find(b => n >= b.min) || {}).color || null;
+    // Sightings of one species per ecoregion (used by "Show on map")
+    const SP_BINS = [
+      { min: 151, color: '#7a3d0a', label: '151+' },
+      { min: 41,  color: '#b8691c', label: '41–150' },
+      { min: 11,  color: '#e79a3c', label: '11–40' },
+      { min: 3,   color: '#f4bf74', label: '3–10' },
+      { min: 1,   color: '#fbe3bd', label: '1–2' },
+    ];
+    const activeBins = () => mappedSpecies ? SP_BINS : BINS;
+    const colorFor = n => (activeBins().find(b => n >= b.min) || {}).color || null;
 
     // ---------- Map ----------
     const map = L.map('map').setView([58.0, -96.0], 4);
@@ -338,14 +364,48 @@
     const layerById = new Map();
 
     const legend = L.control({ position: 'bottomright' });
-    legend.onAdd = () => {
-      const d = L.DomUtil.create('div', 'legend');
-      d.innerHTML = '<b>Butterfly species seen</b>' +
-        BINS.map(b => `<div><i style="background:${b.color}"></i>${b.label}</div>`).join('') +
+    legend.onAdd = () => L.DomUtil.create('div', 'legend');
+    legend.addTo(map);
+    function updateLegend() {
+      legend.getContainer().innerHTML =
+        `<b>${mappedSpecies ? 'Sightings of ' + nameOf(mappedSpecies) : 'Butterfly species seen'}</b>` +
+        activeBins().map(b => `<div><i style="background:${b.color}"></i>${b.label}</div>`).join('') +
         '<div><i style="background:transparent"></i>None recorded</div>';
+    }
+    updateLegend();
+
+    // Banner shown while one species is mapped
+    const banner = L.control({ position: 'topright' });
+    banner.onAdd = () => {
+      const d = L.DomUtil.create('div', 'sp-banner');
+      L.DomEvent.disableClickPropagation(d);
       return d;
     };
-    legend.addTo(map);
+    function updateBanner() {
+      if (!mappedSpecies) { banner.remove(); return; }
+      if (!banner.getContainer() || !banner.getContainer().parentNode) banner.addTo(map);
+      const n = regions.filter(f => speciesSightings(f.properties.id) > 0).length;
+      const d = banner.getContainer();
+      d.innerHTML = `<span>Showing <b>${nameOf(mappedSpecies)}</b> · seen in ${n} ecoregion${n === 1 ? '' : 's'}</span><button type="button">Clear</button>`;
+      d.querySelector('button').addEventListener('click', () => showSpeciesOnMap(null));
+    }
+
+    function nameOf(sci) {
+      return observations.find(o => o.scientificName === sci)?.commonName || sci;
+    }
+    const speciesSightings = id => regionStats.get(id)?.get(mappedSpecies)?.count || 0;
+    const mapValue = id => mappedSpecies ? speciesSightings(id) : speciesCount(id);
+
+    // Colour the map by one species' sightings (null = back to species richness)
+    function showSpeciesOnMap(sci) {
+      mappedSpecies = sci;
+      restyleRegions(); updateLegend(); updateBanner();
+      if (sci) {
+        const hit = regions.filter(f => speciesSightings(f.properties.id) > 0).map(f => layerById.get(f.properties.id));
+        if (hit.length) map.fitBounds(L.featureGroup(hit).getBounds(), { padding: [30, 30], maxZoom: 6 });
+      }
+      if (viewMode === 'plants') renderPlantView();
+    }
 
     // ---------- Load data ----------
     Promise.all([
@@ -385,12 +445,12 @@
 
     // ---------- Region layer ----------
     function styleFor(f) {
-      const id = f.properties.id, n = speciesCount(id), c = colorFor(n), sel = id === selectedRegion;
+      const id = f.properties.id, n = mapValue(id), c = colorFor(n), sel = id === selectedRegion;
       return {
         color: sel ? '#22301b' : '#5b6b52', weight: sel ? 3 : 0.8, opacity: sel ? 1 : 0.6,
         // While a region is selected, fade the others so it stands out
         fillColor: c || '#ffffff',
-        fillOpacity: !c ? 0.05 : (selectedRegion == null || sel ? 0.75 : 0.3),
+        fillOpacity: !c ? 0.05 : (selectedRegion == null || sel || mappedSpecies ? 0.75 : 0.3),   // no fading while one species is mapped
       };
     }
 
@@ -400,9 +460,10 @@
         onEachFeature: (f, layer) => {
           layerById.set(f.properties.id, layer);
           layer.bindTooltip(() => {
-            const n = speciesCount(f.properties.id);
+            const n = mapValue(f.properties.id);
+            const what = mappedSpecies ? `sighting${n === 1 ? '' : 's'} of ${nameOf(mappedSpecies)}` : 'species';
             return `<b>${f.properties.name}</b><br><span class="t-sub">${f.properties.zoneName} · ` +
-              `${n ? n + ' species' : 'no sightings'}</span>`;
+              `${n ? n + ' ' + what : (mappedSpecies ? 'not seen here' : 'no sightings')}</span>`;
           }, { sticky: true, className: 'eco-tip' });
           layer.on('mouseover', () => { if (f.properties.id !== selectedRegion) layer.setStyle({ weight: 2, opacity: 1 }); });
           layer.on('mouseout', () => regionLayer.resetStyle(layer));
@@ -459,7 +520,7 @@
           return `<details class="zone" data-zone="${zone}" ${openZones.has(zone) ? 'open' : ''}>
             <summary><span class="zname">${zone}</span><span class="count">${withData}/${rs.length} regions</span></summary>
             ${rs.map(r => {
-              const n = speciesCount(r.id), c = colorFor(n);
+              const n = speciesCount(r.id), c = (BINS.find(b => n >= b.min) || {}).color || null;   // list swatches always show species
               return `<div class="region-row ${n ? '' : 'empty'}" data-id="${r.id}">
                 <span style="display:flex;align-items:center;gap:8px;min-width:0">
                   <span class="swatch" style="background:${c || 'transparent'}"></span>${r.name}</span>
@@ -535,7 +596,9 @@
             <button class="${activeCategory === 'nectar' ? 'on' : ''}" data-cat="nectar">Nectar</button>
           </span>
         </div>
-        ${SpeciesInfo.card(activeButterfly)}`;
+        ${SpeciesInfo.card(activeButterfly)}
+        <button class="map-sp-btn ${mappedSpecies === activeButterfly ? 'on' : ''}" id="mapSpBtn" type="button">
+          ${mappedSpecies === activeButterfly ? 'Stop showing on map' : 'Show where it’s been seen'}</button>`;
 
       if (lists.length === 0) {
         html += '<p class="hint">No plant data for this species from the selected sources.</p>';
@@ -556,6 +619,8 @@
       box.querySelector('.back').addEventListener('click', () => { viewMode = 'list'; renderMain(); });
       box.querySelectorAll('.seg button').forEach(btn =>
         btn.addEventListener('click', () => { activeCategory = btn.dataset.cat; renderPlantView(); }));
+      box.querySelector('#mapSpBtn').addEventListener('click', () =>
+        showSpeciesOnMap(mappedSpecies === activeButterfly ? null : activeButterfly));
     }
 
     function shortSource(org) { return /xerces/i.test(org) ? 'Xerces Society' : org; }
@@ -628,7 +693,7 @@
     }
 
     function onTimeChange() {
-      computeStats(); restyleRegions();
+      computeStats(); restyleRegions(); updateBanner();
       if (viewMode === 'plants') viewMode = 'list';
       renderMain();
     }

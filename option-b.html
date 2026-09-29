@@ -109,6 +109,30 @@
     #mapwrap { flex: 1; position: relative; overflow: hidden; }
     #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
     #mapwrap.popopen #map { right: calc(var(--popup-w) + 24px); }
+    /* "Show on map" for one species */
+    .map-sp { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 18px; clear: both; }
+    .map-sp-btn {
+      background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px;
+      padding: 7px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .map-sp-btn:hover { filter: brightness(1.06); }
+    .map-sp-btn.on { background: #eeebe2; color: var(--card-ink); font-weight: 400; }
+    .map-sp-note { font-size: 12px; color: var(--card-dim); }
+    .map-legend {
+      background: rgba(255, 255, 255, 0.94); color: #22301b; padding: 8px 10px; border-radius: 6px;
+      font: 12px "Helvetica Neue", Helvetica, Arial, sans-serif; box-shadow: 0 1px 6px rgba(0,0,0,0.25); line-height: 1.5;
+    }
+    .map-legend b { display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .map-legend i { display: inline-block; width: 14px; height: 10px; margin-right: 6px; border-radius: 2px;
+                    vertical-align: -1px; border: 1px solid rgba(0,0,0,0.2); }
+    .sp-banner {
+      background: #22301b; color: #f4f6f0; padding: 8px 12px; border-radius: 8px;
+      font: 13px "Helvetica Neue", Helvetica, Arial, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sp-banner button { background: rgba(255,255,255,0.15); color: inherit; border: 0; border-radius: 6px;
+                        padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+    .sp-banner button:hover { background: rgba(255,255,255,0.28); }
     .leaflet-tooltip.eco-tip { font: 13px "Helvetica Neue", Helvetica, Arial, sans-serif; }
     .eco-tip .t-sub { color: #666; font-size: 12px; }
 
@@ -411,7 +435,7 @@
       return {
         color: sel ? '#22301b' : '#5b6b52', weight: sel ? 3 : 0.6, opacity: sel ? 1 : 0.55,
         fillColor: c || NONE_FILL,
-        fillOpacity: !c ? 0.05 : (state.region == null || sel ? 0.75 : 0.3),
+        fillOpacity: !c ? 0.05 : (state.region == null || sel || state.species ? 0.75 : 0.3),   // no fading while one species is mapped
       };
     }
 
@@ -477,7 +501,41 @@
       }));
     }
 
+    // ---------- One species on the map ----------
+    const banner = L.control({ position: 'topright' });
+    banner.onAdd = () => { const d = L.DomUtil.create('div', 'sp-banner'); L.DomEvent.disableClickPropagation(d); return d; };
+    const regionsWith = sci => regions.filter(f => (stats.get(f.properties.id)?.species.get(sci)?.count || 0) > 0);
+    // Density legend on the map itself while one species is shown
+    const mapLegend = L.control({ position: 'bottomright' });
+    mapLegend.onAdd = () => L.DomUtil.create('div', 'map-legend');
+    function updateMapLegend() {
+      if (!state.species) { mapLegend.remove(); return; }
+      if (!mapLegend.getContainer() || !mapLegend.getContainer().parentNode) mapLegend.addTo(map);
+      mapLegend.getContainer().innerHTML = `<b>Sightings of ${esc(commonName(state.species))}${state.year ? ' · ' + state.year : ''}</b>` +
+        currentBins().map(([, c, label]) => `<div><i style="background:${c}"></i>${label} per ecoregion</div>`).join('') +
+        '<div><i style="background:transparent"></i>Not seen</div>';
+    }
+    function updateBanner() {
+      updateMapLegend();
+      if (!state.species) { banner.remove(); return; }
+      if (!banner.getContainer() || !banner.getContainer().parentNode) banner.addTo(map);
+      const n = regionsWith(state.species).length, d = banner.getContainer();
+      d.innerHTML = `<span>Showing <b>${esc(commonName(state.species))}</b> · seen in ${n} ecoregion${n === 1 ? '' : 's'}${state.year ? ' in ' + state.year : ''}</span><button type="button">Clear</button>`;
+      d.querySelector('button').addEventListener('click', () => showSpeciesOnMap(''));
+    }
+    // Used by the button in a species' detail view (and the banner's Clear)
+    function showSpeciesOnMap(sci) {
+      state.species = sci; document.getElementById('spSelect').value = sci;
+      restyle(); renderSidebar();
+      if (sci) {
+        const hit = regionsWith(sci).map(f => layerById.get(f.properties.id));
+        if (hit.length) map.fitBounds(L.featureGroup(hit).getBounds(), { padding: [30, 30], maxZoom: 6 });
+      }
+      if (state.region != null) renderPopup();
+    }
+
     function renderSidebar() {
+      updateBanner();
       document.getElementById('legendLabel').textContent = 'Legend — ' +
         (state.species ? 'sightings of ' + commonName(state.species) : (state.colourBy === 'obs' ? 'sightings' : 'species seen'));
       document.getElementById('legend').innerHTML =
@@ -657,6 +715,11 @@
         <p class="det-h">${esc(s.common || s.sci)}</p>
         <p class="det-sci">${esc(s.sci)} · ${fmt(s.count)} sighting${s.count === 1 ? '' : 's'} in ${esc(p.name)}</p>
         ${SpeciesInfo.card(s.sci, { layout: 'side' })}
+        <div class="map-sp">
+          <button class="map-sp-btn ${state.species === s.sci ? 'on' : ''}" id="mapSpBtn" type="button">
+            ${state.species === s.sci ? 'Stop showing on map' : 'Show where it’s been seen'}</button>
+          <span class="map-sp-note">Seen in ${regionsWith(s.sci).length} of ${regions.length} ecoregions${state.year ? ' in ' + state.year : ''}</span>
+        </div>
         <div class="chart">
           <p class="chart-title">When it flies here</p>
           <p class="chart-sub">Sightings by month in ${esc(p.name)}${state.year ? ', ' + state.year : ''}</p>
@@ -676,6 +739,7 @@
           <p class="cite">Source: ${esc((list.source.authors || []).join(', '))}${list.source.authors ? ' ' : ''}(${list.source.year}).
             <a href="${esc(list.source.url)}" target="_blank" rel="noopener">${esc(list.source.title)}</a>. ${esc(list.source.org)}.</p>`}`;
       body.querySelector('#back').addEventListener('click', () => { state.detail = null; renderPopup(); });
+      body.querySelector('#mapSpBtn').addEventListener('click', () => showSpeciesOnMap(state.species === s.sci ? '' : s.sci));
       body.querySelectorAll('.pl-toggle button').forEach(b => b.addEventListener('click', () => { state.plantCat = b.dataset.c; renderPopup(); }));
       body.querySelector('#listSel')?.addEventListener('change', e => { state.listId = e.target.value; renderPopup(); });
     }

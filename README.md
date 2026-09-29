@@ -114,6 +114,11 @@ Click an ecoregion to open a popup with:
   latest dates.
 - **Compare regions** — ranking against the other ecoregions in the same ecozone.
 
+In a species' detail view (Options A and B), **Show where it's been seen** recolours the
+map by that species' sightings per ecoregion and zooms to where it has been recorded.
+On the radius map (index.html) the same button plots every sighting of the species as a
+dot (canvas layer, so thousands of points stay fast), filtered by the time period.
+
 The sidebar colours the map by species or sightings, can map a single species, and
 filters by year. The popup footer downloads the species list as CSV and copies a link;
 the open region, tab and year are kept in the URL (e.g. `option-b.html#region=209&tab=season`).
