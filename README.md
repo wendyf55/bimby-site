@@ -20,6 +20,7 @@ Then open <http://localhost:8000>
                                    list, year charts, flight season, compare regions)
     option-c.html                  Design option C (placeholder for now)
     dev-switcher.js                Dev-mode option switcher (open any page with ?dev)
+    species-info.js                Species photos + descriptions, shared by all pages
     data/                          (git-ignored)
       observations.json            Butterfly observations used by the app (generated)
       plant-lists.json             Host/nectar plant lists, one entry per region/source
@@ -27,10 +28,13 @@ Then open <http://localhost:8000>
       ecoregions.geojson           Simplified ecoregion outlines (generated)
       observation-ecoregions.json  Observation id -> ecoregion id (generated)
       ecozones.geojson             Ecozone outlines (generated; not currently used)
+      species-info.json            Species descriptions + photos (generated)
+      species-info-overrides.json  Optional hand fixes for the above
       raw/                         Ecoregion + ecozone shapefile zips from AAFC
     scripts/
       build_observations.py        Rebuilds observations.json from the raw CSV
       build_ecoregions.py          Builds the three ecoregion/ecozone files above
+      build_species_info.py        Builds species-info.json (needs internet)
 
 ## Data sources
 
@@ -76,6 +80,25 @@ Then open <http://localhost:8000>
     Canada are left untagged.
   - `data/ecozones.geojson` — the 15 ecozones, merged from the simplified ecoregions
     (so their borders line up exactly). Not used by any page right now.
+
+### Species descriptions & photos — Wikipedia + iNaturalist
+
+- **Descriptions:** the first paragraph of each species' English Wikipedia article
+  (REST "page summary" API). Wikipedia text is **CC BY-SA 4.0**; every description on
+  the site links back to its article with the licence.
+- **Photos:** each species' iNaturalist taxon photo (the one on its iNaturalist
+  species page). "All rights reserved" photos are skipped in favour of the next openly
+  licensed photo iNaturalist has for that species. Licences are mostly CC BY-NC
+  (fine for a non-commercial research site); every photo is shown with the
+  photographer's credit and licence. If iNaturalist has nothing licensed, the
+  Wikipedia lead image is used (credit + licence from Wikimedia Commons).
+- **Pipeline:** `python3 scripts/build_species_info.py` (standard library only, needs
+  internet, ~5–8 min for ~250 species) writes `data/species-info.json`. Re-running only
+  fetches species that are new; `--refresh` re-fetches everything. Wrong or missing
+  matches can be fixed by hand in `data/species-info-overrides.json` (see the script's
+  header). Pages work without the file — they just show no photos/descriptions.
+- **On the pages:** a small photo next to each butterfly in the lists, and the photo +
+  description at the top of each butterfly's detail view.
 
 ## Option B — ecoregion atlas
 

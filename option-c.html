@@ -8,6 +8,7 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="species-info.js"></script>
 
   <style>
     :root {
@@ -299,6 +300,7 @@
       for (const l of lists) (plantIndex[l.butterfly.scientificName] ??= []).push(l);
       enabledPlantSources = new Set(lists.map(l => l.id));
       buildChips();
+      SpeciesInfo.load().then(renderMain);     // photos + descriptions
     }).catch(err => {
       document.getElementById('main').innerHTML = '<p class="hint">Could not load data files.</p>';
       console.error(err);
@@ -344,6 +346,7 @@
       box.innerHTML = `<div class="col-head"><span class="h-bf">Butterflies</span><span class="h-pl">Plants</span></div>` +
         currentSpecies.map(s => `
           <div class="bf-row" data-name="${s.scientificName}">
+            ${SpeciesInfo.thumb(s.scientificName)}
             <span class="bf-name">
               <span class="bf-common">${s.commonName || s.scientificName}</span>
               <span class="bf-sci">${s.scientificName}</span>
@@ -382,7 +385,8 @@
             <button class="${activeCategory === 'host' ? 'on' : ''}" data-cat="host">Host</button>
             <button class="${activeCategory === 'nectar' ? 'on' : ''}" data-cat="nectar">Nectar</button>
           </span>
-        </div>`;
+        </div>
+        ${SpeciesInfo.card(activeButterfly)}`;
 
       if (lists.length === 0) {
         html += '<p class="hint">No plant data for this species from the selected sources.</p>';
