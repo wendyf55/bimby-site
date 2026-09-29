@@ -11,494 +11,725 @@
   <script src="species-info.js"></script>
 
   <style>
+    /*
+     * Option C — "Your backyard"
+     * One question first (where is your backyard?), then two levels of answer
+     * (near you / your ecoregion), then butterflies as photo cards that open in place.
+     */
     :root {
-      /* Tonal green family */
-      --green-900: #22301b;   /* settings footer (deepest) */
-      --green-800: #33472a;   /* sidebar base */
-      --green-700: #3e5433;   /* surfaces / hover */
-      --line:      rgba(255, 255, 255, 0.13);
-
-      /* Text */
-      --ink:     #f4f6f0;
-      --ink-dim: rgba(244, 246, 240, 0.60);
-
-      /* Single warm accent (monarch amber) for all active states */
+      --green-900: #22301b;
+      --green-800: #33472a;
+      --green-100: #e2ecd9;
       --accent:      #e79a3c;
       --accent-ink:  #2b1d06;
+      --link:        #8a4a0c;
 
-      /* Neutral translucent button surface */
-      --surface:       rgba(255, 255, 255, 0.10);
-      --surface-hover: rgba(255, 255, 255, 0.18);
+      --bg:    #fbfaf6;
+      --ink:   #1f261b;
+      --dim:   #5c6556;
+      --line:  #e4e1d6;
+      --soft:  #f1efe7;
+      --focus: #2f6fdd;
 
-      --sidebar-w: 440px;
+      --panel-w: 460px;
+      --radius: 12px;
     }
 
     * { box-sizing: border-box; }
-
+    html, body { margin: 0; height: 100%; }
     body {
-      margin: 0;
       font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-      font-size: 16px;
-      color: var(--ink);
+      font-size: 15px; line-height: 1.45; color: var(--ink); background: var(--bg);
       -webkit-font-smoothing: antialiased;
     }
+    button, input, select { font: inherit; color: inherit; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    svg.icon { width: 18px; height: 18px; flex: 0 0 18px; fill: none; stroke: currentColor; stroke-width: 2;
+               stroke-linecap: round; stroke-linejoin: round; }
 
     #layout { display: flex; height: 100vh; }
 
-    #sidebar {
-      width: var(--sidebar-w);
-      flex: 0 0 var(--sidebar-w);
-      background: var(--green-800);
-      color: var(--ink);
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      box-shadow: 2px 0 12px rgba(0, 0, 0, 0.18);
-      z-index: 1000;
+    /* ---------- Panel ---------- */
+    #panel {
+      width: var(--panel-w); flex: 0 0 var(--panel-w); height: 100%;
+      display: flex; flex-direction: column; background: var(--bg);
+      border-right: 1px solid var(--line); z-index: 1001;
     }
+    .app-head { background: var(--green-800); color: #f4f6f0; padding: 16px 22px 14px; }
+    .app-title { font-size: 19px; font-weight: 700; letter-spacing: 0.12em; }
+    .app-sub { font-size: 13px; opacity: 0.75; margin-top: 2px; }
+    #content { flex: 1; overflow-y: auto; padding: 20px 22px 28px; }
 
-    #map { flex: 1; height: 100%; }
+    h2.lead { font-size: 24px; line-height: 1.2; margin: 6px 0 6px; letter-spacing: -0.01em; }
+    p.sub { color: var(--dim); margin: 0 0 18px; }
 
-    /* App header */
-    .app-head {
-      padding: 16px 18px 14px;
-      border-bottom: 1px solid var(--line);
+    .search { display: flex; gap: 8px; }
+    .search input {
+      flex: 1; min-width: 0; padding: 11px 12px; border: 1px solid #cfcabc; border-radius: 10px; background: #fff;
     }
-    .app-title {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: 0.14em;
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; font-weight: 600;
     }
-    .app-sub {
-      font-size: 12px;
-      color: var(--ink-dim);
-      margin-top: 2px;
-      letter-spacing: 0.02em;
+    .btn.primary { background: var(--green-800); color: #fff; }
+    .btn.primary:hover { background: var(--green-900); }
+    .btn.secondary { background: #fff; border: 1px solid #cfcabc; color: var(--ink); font-weight: 500; }
+    .btn.secondary:hover { background: var(--soft); }
+    .btn.full { width: 100%; }
+    .or { display: flex; align-items: center; gap: 10px; color: var(--dim); font-size: 13px; margin: 14px 0; }
+    .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+    .hint { color: var(--dim); font-size: 13px; margin: 12px 0 0; }
+    .msg { color: #8a2a0c; font-size: 13px; margin: 8px 0 0; }
+
+    .matches { list-style: none; padding: 0; margin: 10px 0 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .matches li + li { border-top: 1px solid var(--line); }
+    .matches button { width: 100%; text-align: left; background: #fff; border: 0; padding: 10px 12px; cursor: pointer; }
+    .matches button:hover { background: var(--soft); }
+    .matches small { display: block; color: var(--dim); }
+
+    .canada { margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--dim); font-size: 13px; }
+    .canada b { color: var(--ink); }
+
+    /* Place + summary */
+    .place { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .place .name { flex: 1; min-width: 0; font-weight: 700; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .link-btn { background: none; border: 0; padding: 4px 0; color: var(--link); cursor: pointer; text-decoration: underline; font-size: 14px; }
+
+    .scope { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+    .tile {
+      text-align: left; background: #fff; border: 1.5px solid var(--line); border-radius: var(--radius);
+      padding: 12px 12px 11px; cursor: pointer; position: relative;
     }
+    .tile:hover { border-color: #cfcabc; }
+    .tile[aria-disabled="true"] { cursor: default; opacity: 0.7; }
+    .tile[aria-pressed="true"] { border-color: var(--green-800); box-shadow: inset 0 0 0 1px var(--green-800); background: #f6f9f2; }
+    .tile .k { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+    .tile .t { font-weight: 600; margin: 2px 0 6px; font-size: 14px; line-height: 1.25; }
+    .tile .n { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .tile .n small { font-size: 13px; font-weight: 500; color: var(--dim); }
+    .tile .s { font-size: 12px; color: var(--dim); }
+    .tile select { border: 0; background: transparent; font-weight: 600; padding: 0; cursor: pointer; text-decoration: underline; }
+    .explain { background: var(--soft); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--ink); margin: 0 0 10px; }
 
-    /* Main scroll area */
-    #main { flex: 1 1 0; overflow-y: auto; padding: 0 18px 18px; }
-    #main::-webkit-scrollbar { width: 8px; }
-    #main::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 4px; }
-
-    .hint { color: var(--ink-dim); font-size: 0.9em; padding-top: 16px; line-height: 1.5; }
-
-    /* Sticky column header */
-    .col-head {
-      position: sticky;
-      top: 0;
-      background: var(--green-800);
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      padding: 16px 0 10px;
-      margin-bottom: 2px;
-      border-bottom: 1px solid var(--line);
-      z-index: 2;
+    /* Filters */
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0 6px; }
+    .filters input[type=search] {
+      flex: 1 1 160px; min-width: 0; padding: 8px 10px; border: 1px solid #cfcabc; border-radius: 8px; background: #fff;
     }
-    .col-head .h-bf { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
-    .col-head .h-pl { font-size: 11px; font-weight: 600; text-transform: uppercase;
-                      letter-spacing: 0.12em; color: var(--ink-dim); }
-
-    /* Butterfly rows */
-    .bf-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 4px;
-      border-bottom: 1px solid var(--line);
-    }
-    .bf-row:hover { background: var(--surface); }
-    .bf-name { flex: 1; min-width: 0; cursor: pointer; }
-    .bf-common { display: block; font-size: 16px; font-weight: 600; line-height: 1.25; }
-    .bf-sci { display: block; font-style: italic; color: var(--ink-dim); font-size: 13px; margin-top: 1px; }
-
-    .plants-cell { display: flex; gap: 8px; flex: 0 0 auto; }
-
-    /* Neutral action buttons (list rows) */
-    .toggle-btn {
-      background: var(--surface);
-      color: var(--ink);
-      border: 1px solid transparent;
-      padding: 7px 14px;
-      border-radius: 999px;
-      cursor: pointer;
-      font-size: 13px;
-      font-family: inherit;
-      transition: background 0.12s, border-color 0.12s;
-    }
-    .toggle-btn:hover { background: var(--surface-hover); border-color: var(--accent); }
-
-    /* Segmented control (plant view) */
-    .seg {
-      display: inline-flex;
-      border: 1px solid rgba(255, 255, 255, 0.30);
-      border-radius: 999px;
-      overflow: hidden;
-    }
-    .seg button {
-      background: transparent;
-      color: var(--ink-dim);
-      border: none;
-      padding: 7px 18px;
-      cursor: pointer;
-      font-size: 13px;
-      font-family: inherit;
-      transition: background 0.12s, color 0.12s;
-    }
-    .seg button + button { border-left: 1px solid rgba(255, 255, 255, 0.30); }
-    .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
-
-    /* Plant view */
-    .back {
-      background: none; border: none; color: var(--ink-dim); cursor: pointer;
-      padding: 14px 0 6px; font-size: 13px; font-family: inherit;
-    }
-    .back:hover { color: var(--ink); }
-    .plant-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
-    #main ul { margin: 12px 0 0; padding-left: 20px; }
-    #main li { margin-bottom: 6px; line-height: 1.4; }
-    .bloom { color: var(--ink-dim); font-size: 0.85em; }
-    .source { font-size: 12px; color: var(--ink-dim); margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); line-height: 1.5; }
-    .source a { color: var(--accent); text-decoration: none; }
-    .source a:hover { text-decoration: underline; }
-
-    /* Settings footer */
-    #settings { flex: 0 0 auto; background: var(--green-900); border-top: 1px solid var(--line); }
-    .settings-head {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 18px; cursor: pointer; user-select: none;
-      font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
-    }
-    .settings-head .chev { transition: transform 0.15s; color: var(--ink-dim); }
-    .settings-head.collapsed .chev { transform: rotate(-90deg); }
-    .settings-body { padding: 0 18px 16px; }
-    .settings-body.hidden { display: none; }
-    .settings-body label {
-      display: block; margin: 12px 0 6px;
-      font-size: 11px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--ink-dim);
-    }
-
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .filters select { padding: 8px 8px; border: 1px solid #cfcabc; border-radius: 8px; background: #fff; }
     .chip {
-      background: transparent;
-      color: var(--ink);
-      border: 1px solid rgba(255, 255, 255, 0.30);
-      padding: 6px 12px;
-      border-radius: 999px;
-      cursor: pointer;
-      font-size: 12px;
-      font-family: inherit;
-      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      border: 1px solid #cfcabc; background: #fff; border-radius: 999px; padding: 7px 13px; cursor: pointer; font-size: 13px;
     }
-    .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+    .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    .count-line { font-size: 13px; color: var(--dim); margin: 6px 0 10px; }
 
-    .radius-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
-    .radius-row input[type=range] { flex: 1; accent-color: var(--accent); }
-    .radius-val { min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; }
+    /* Cards */
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .card {
+      background: #fff; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+      text-align: left; padding: 0; cursor: pointer; display: flex; flex-direction: column;
+    }
+    .card:hover { border-color: #cfcabc; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+    .card .ph { aspect-ratio: 4 / 3; background: var(--soft); display: flex; align-items: center; justify-content: center;
+                color: #9a9a8f; font-size: 12px; position: relative; }
+    .card .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .card .meta { padding: 9px 11px 11px; }
+    .card .cn { font-weight: 600; line-height: 1.25; }
+    .card .sn { font-style: italic; color: var(--dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .card .ct { font-size: 12px; color: var(--dim); margin-top: 3px; }
 
-    /* Time period: dual-handle range slider */
-    .range2 { position: relative; flex: 1; height: 24px; }
-    .range2 .track, .range2 .fill {
-      position: absolute; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px;
+    /* Expanded card (spans the whole row) */
+    .detail {
+      grid-column: 1 / -1; background: #fff; border: 1.5px solid var(--green-800); border-radius: var(--radius);
+      padding: 16px 16px 18px; scroll-margin-top: 12px;
     }
-    .range2 .track { left: 0; right: 0; background: rgba(255, 255, 255, 0.25); }
-    .range2 .fill { background: var(--accent); }
-    .range2 input[type=range] {
-      position: absolute; left: 0; top: 0; width: 100%; height: 24px; margin: 0;
-      background: none; pointer-events: none; -webkit-appearance: none; appearance: none;
+    .detail-head { display: flex; align-items: flex-start; gap: 10px; }
+    .detail-head .names { flex: 1; min-width: 0; }
+    .detail-head h3 { margin: 0; font-size: 20px; line-height: 1.2; }
+    .detail-head .sn { font-style: italic; color: var(--dim); }
+    .close-btn { background: var(--soft); border: 0; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 13px; }
+    .close-btn:hover { background: var(--line); }
+    .detail h4 { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); margin: 18px 0 6px; }
+    .facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--dim); margin-top: 6px; }
+    .facts b { color: var(--ink); font-weight: 600; }
+
+    .chart svg { display: block; width: 100%; height: auto; }
+    .chart text { font-size: 11px; fill: var(--dim); font-family: inherit; }
+    .chart .bar { fill: var(--accent); }
+    .chart .bar.now { fill: #b8691c; }
+
+    .seg { display: inline-flex; border: 1px solid #cfcabc; border-radius: 999px; overflow: hidden; margin-bottom: 8px; }
+    .seg button { background: #fff; border: 0; padding: 6px 14px; cursor: pointer; font-size: 13px; }
+    .seg button + button { border-left: 1px solid #cfcabc; }
+    .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    ul.plants { list-style: none; margin: 0; padding: 0; }
+    ul.plants li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid #eeebe2; font-size: 14px; }
+    ul.plants i { color: var(--dim); }
+    ul.plants .bloom { color: var(--dim); white-space: nowrap; font-size: 13px; }
+    .list-select { width: 100%; padding: 7px 8px; border: 1px solid #cfcabc; border-radius: 8px; background: #fff; margin-bottom: 6px; }
+    .note { font-size: 13px; color: var(--dim); background: var(--soft); border-radius: 8px; padding: 10px 12px; }
+    .cite { font-size: 11px; color: var(--dim); margin-top: 8px; }
+    .cite a, .about a { color: var(--link); }
+    .map-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 18px; }
+    .map-row .s { font-size: 13px; color: var(--dim); }
+
+    .empty { background: var(--soft); border-radius: var(--radius); padding: 16px; color: var(--dim); font-size: 14px; }
+
+    details.about { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 12px; font-size: 13px; color: var(--dim); }
+    details.about summary { cursor: pointer; color: var(--ink); font-weight: 600; }
+    details.about p { margin: 8px 0 0; }
+
+    /* ---------- Map ---------- */
+    #mapwrap { flex: 1; position: relative; }
+    #map { position: absolute; inset: 0; }
+    .you-pin {
+      width: 18px; height: 18px; border-radius: 50%; background: var(--green-800);
+      border: 3px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.45);
     }
-    .range2 input[type=range]::-webkit-slider-runnable-track { background: none; height: 24px; }
-    .range2 input[type=range]::-moz-range-track { background: none; }
-    .range2 input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none; pointer-events: auto; cursor: pointer;
-      width: 16px; height: 16px; margin-top: 4px; border-radius: 50%;
-      background: var(--accent); border: 2px solid var(--green-900);
+    .map-banner {
+      background: var(--green-900); color: #f4f6f0; padding: 8px 12px; border-radius: 8px;
+      font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 10px;
     }
-    .range2 input[type=range]::-moz-range-thumb {
-      pointer-events: auto; cursor: pointer;
-      width: 12px; height: 12px; border-radius: 50%;
-      background: var(--accent); border: 2px solid var(--green-900);
+    .map-banner .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 1px solid #fff; }
+    .map-banner button { background: rgba(255,255,255,0.16); color: inherit; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+    .map-banner button:hover { background: rgba(255,255,255,0.3); }
+    .map-hint {
+      background: rgba(255,255,255,0.95); color: var(--ink); padding: 7px 11px; border-radius: 8px; font-size: 13px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.2);
     }
-    .time-val { min-width: 118px; text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; }
+    .leaflet-tooltip { font-family: inherit; }
+
+    /* ---------- Phones: map on top, results below ---------- */
+    @media (max-width: 800px) {
+      #layout { flex-direction: column; height: auto; min-height: 100vh; }
+      #mapwrap { order: 1; flex: 0 0 42vh; height: 42vh; position: sticky; top: 0; z-index: 1; }
+      #panel { order: 2; width: 100%; flex: 1 1 auto; height: auto; border-right: 0;
+               border-top-left-radius: 16px; border-top-right-radius: 16px; margin-top: -14px;
+               box-shadow: 0 -4px 16px rgba(0,0,0,0.12); position: relative; z-index: 2; }
+      .app-head { border-top-left-radius: 16px; border-top-right-radius: 16px; }
+      #content { overflow: visible; }
+    }
+    @media (max-width: 380px) {
+      .grid { grid-template-columns: 1fr; }
+      .scope { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 
 <body>
-
   <div id="layout">
-    <div id="sidebar">      <div id="main">
-        <p class="hint">Click the map to find butterflies near a spot.</p>
-      </div>
-      <div id="settings">
-        <div class="settings-head" id="settingsHead">
-          <span>Options</span><span class="chev">▾</span>
-        </div>
-        <div class="settings-body" id="settingsBody">
-          <label>Butterfly Occurrence Sources</label>
-          <div class="chips" id="occChips"></div>
-          <label>Associated Plant Sources</label>
-          <div class="chips" id="plantChips"></div>
-          <label>Point Radius Distance</label>
-          <div class="radius-row">
-            <input type="range" id="radiusSlider" min="1" max="50" value="15" />
-            <span class="radius-val" id="radiusVal">15 km</span>
-          </div>
-          <label>Time Period</label>
-          <div class="radius-row">
-            <div class="range2">
-              <div class="track"></div>
-              <div class="fill" id="timeFill"></div>
-              <input type="range" id="timeStart" min="0" max="0" value="0" />
-              <input type="range" id="timeEnd" min="0" max="0" value="0" />
-            </div>
-            <span class="time-val" id="timeVal">–</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div id="map"></div>
+    <aside id="panel" aria-label="Butterflies near you">
+      <header class="app-head">
+        <div class="app-title">BIMBY</div>
+        <div class="app-sub">Butterflies in My Backyard — a citizen science project</div>
+      </header>
+      <div id="content" aria-live="polite"></div>
+    </aside>
+    <main id="mapwrap"><div id="map" role="application" aria-label="Map of Canada"></div></main>
   </div>
 
   <script>
+    // ---------- Constants & helpers ----------
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const THIS_MONTH = new Date().getMonth();
+    const RADII = [5, 15, 30, 50];
+    const INAT_PROJECT = 'https://www.inaturalist.org/projects/2026-butterflies-in-my-backyard-bimby-project';
+    const GEOCODER = 'https://nominatim.openstreetmap.org';   // OpenStreetMap place search (light use only)
+
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmt = n => n.toLocaleString('en-CA');
+    const plural = (n, one, many = one + 's') => `${fmt(n)} ${n === 1 ? one : many}`;
+    const fmtDate = d => { const [y, m, dd] = d.split('-'); return `${MONTHS[+m - 1]} ${+dd}, ${y}`; };
+    const ICON = {
+      pin: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+      locate: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>',
+      search: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg>',
+    };
+
     // ---------- State ----------
-    let radiusM = 15000;
-    let observations = [], plantLists = [], plantIndex = {};
-    let selectedPoint = null, currentSpecies = [];
-    let viewMode = 'list';
-    let activeButterfly = null, activeCategory = 'host';   // default category
-    let enabledPlantSources = new Set();
-    const OCC_SOURCES = [{ id: 'inat-bimby', label: 'iNaturalist (BIMBY)' }];
-    let enabledOccSources = new Set(OCC_SOURCES.map(s => s.id));
-    // Time period (stored as whole days since the earliest observation)
-    const DAY_MS = 86400000;
-    let baseDateMs = 0, startDay = 0, endDay = 0;
+    let observations = [], plantIndex = {}, regions = [], allYears = [];
+    const state = {
+      point: null, place: '', radiusKm: 15, region: null,   // region = GeoJSON feature or null
+      scope: 'near',                                          // 'near' | 'region'
+      q: '', flyingNow: false, sort: 'count', year: '',
+      open: null, plantCat: 'host', listId: null,             // expanded card
+      mapped: null,                                           // species shown as dots
+      matches: null, message: '', showEcoInfo: false,
+    };
+    let scopeCache = null;
 
     // ---------- Map ----------
-    const map = L.map('map').setView([62.0, -96.0], 4);
+    const map = L.map('map', { zoomSnap: 0.25 }).setView([58, -96], 4);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        + ' | Ecoregions: <a href="https://sis.agr.gc.ca/cansis/nsdb/ecostrat/" target="_blank" rel="noopener">AAFC</a>'
     }).addTo(map);
-    const pinIcon = L.icon({
-      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-      iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
-    });
-    let clickedMarker = null, radiusCircle = null;
+    const youIcon = L.divIcon({ className: '', html: '<div class="you-pin"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+    let youMarker = null, radiusCircle = null, regionLayer = null, dotLayer = null;
+    const dotRenderer = L.canvas({ padding: 0.5 });
+
+    const hint = L.control({ position: 'topright' });
+    hint.onAdd = () => { const d = L.DomUtil.create('div', 'map-hint'); d.textContent = 'Click the map to choose a spot'; return d; };
+    hint.addTo(map);
+    const banner = L.control({ position: 'topright' });
+    banner.onAdd = () => { const d = L.DomUtil.create('div', 'map-banner'); L.DomEvent.disableClickPropagation(d); return d; };
+
+    map.on('click', e => setPoint(e.latlng, null, true));
 
     // ---------- Load data ----------
     Promise.all([
       fetch('data/observations.json').then(r => r.json()),
-      fetch('data/plant-lists.json').then(r => r.json())
-    ]).then(([obs, lists]) => {
-      observations = obs; plantLists = lists;
-      initTimeSlider();
+      fetch('data/plant-lists.json').then(r => r.json()),
+      fetch('data/ecoregions.geojson').then(r => r.json()),
+      fetch('data/observation-ecoregions.json').then(r => r.json()),
+      SpeciesInfo.load(),
+    ]).then(([obs, lists, geo, obsRegion]) => {
+      observations = obs;
+      for (const o of observations) {
+        o._region = obsRegion[o.id] ?? null;
+        o._year = (o.observedOn || '').slice(0, 4);
+        o._month = +(o.observedOn || '').slice(5, 7) - 1;
+      }
       for (const l of lists) (plantIndex[l.butterfly.scientificName] ??= []).push(l);
-      enabledPlantSources = new Set(lists.map(l => l.id));
-      buildChips();
-      SpeciesInfo.load().then(renderMain);     // photos + descriptions
+      regions = geo.features.map(f => ({ f, bbox: bboxOf(f.geometry) }));
+      allYears = [...new Set(observations.map(o => o._year).filter(Boolean))].sort();
+      if (!restoreFromHash()) render();
     }).catch(err => {
-      document.getElementById('main').innerHTML = '<p class="hint">Could not load data files.</p>';
+      document.getElementById('content').innerHTML = '<p class="empty">Sorry, the butterfly data could not be loaded.</p>';
       console.error(err);
     });
 
-    // ---------- Map click ----------
-    map.on('click', (e) => { selectedPoint = e.latlng; drawPin(); runQuery(); });
-
-    function drawPin() {
-      if (!selectedPoint) return;
-      if (clickedMarker) clickedMarker.remove();
-      if (radiusCircle) radiusCircle.remove();
-      clickedMarker = L.marker(selectedPoint, { icon: pinIcon }).addTo(map);
-      radiusCircle = L.circle(selectedPoint, { radius: radiusM, color: '#e79a3c', fillColor: '#e79a3c', fillOpacity: 0.12, weight: 2 }).addTo(map);
+    // ---------- Which ecoregion is a point in? (ray casting on the outlines) ----------
+    function bboxOf(g) {
+      let b = [Infinity, Infinity, -Infinity, -Infinity];
+      const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+      for (const poly of polys) for (const [x, y] of poly[0]) {
+        if (x < b[0]) b[0] = x; if (y < b[1]) b[1] = y; if (x > b[2]) b[2] = x; if (y > b[3]) b[3] = y;
+      }
+      return b;
+    }
+    function inRing(x, y, ring) {
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    }
+    function regionAt(latlng) {
+      const x = latlng.lng, y = latlng.lat;
+      for (const { f, bbox } of regions) {
+        if (x < bbox[0] || x > bbox[2] || y < bbox[1] || y > bbox[3]) continue;
+        const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+        for (const poly of polys) {
+          if (inRing(x, y, poly[0]) && !poly.slice(1).some(h => inRing(x, y, h))) return f;
+        }
+      }
+      return null;
     }
 
-    function runQuery() {
-      if (!selectedPoint) return;
-      const nearby = observations.filter(o =>
-        o._day >= startDay && o._day <= endDay &&
-        map.distance(selectedPoint, L.latLng(o.lat, o.lng)) <= radiusM);
-      const set = new Map();
-      for (const o of nearby) if (!set.has(o.scientificName)) set.set(o.scientificName, o);
-      currentSpecies = [...set.values()].sort((a, b) =>
-        (a.commonName || a.scientificName).localeCompare(b.commonName || b.scientificName));
-      viewMode = 'list'; activeButterfly = null;
-      renderMain();
+    // ---------- Choosing a spot ----------
+    function setPoint(latlng, label, fromMapClick) {
+      state.point = L.latLng(latlng);
+      state.place = label || '';
+      state.region = regionAt(state.point);
+      state.open = null; state.matches = null; state.message = ''; state.q = '';
+      if (!state.region && state.scope === 'region') state.scope = 'near';
+      scopeCache = null;
+      drawPlace(!fromMapClick);
+      render();
+      if (!label) reverseGeocode(state.point);
     }
 
-    function enabledListsFor(name) {
-      return (plantIndex[name] || []).filter(l => enabledPlantSources.has(l.id));
+    function drawPlace(zoom) {
+      hint.remove();
+      youMarker?.remove(); radiusCircle?.remove(); regionLayer?.remove();
+      if (!state.point) { hint.addTo(map); return; }
+      if (state.region) {
+        regionLayer = L.geoJSON(state.region, {
+          interactive: false,
+          style: { color: '#33472a', weight: 1.5, dashArray: '5 4', fillColor: '#33472a', fillOpacity: state.scope === 'region' ? 0.08 : 0.03 },
+        }).addTo(map);
+      }
+      radiusCircle = L.circle(state.point, {
+        radius: state.radiusKm * 1000, color: '#e79a3c', weight: 2, fillColor: '#e79a3c',
+        fillOpacity: state.scope === 'near' ? 0.12 : 0.04, interactive: false,
+      }).addTo(map);
+      youMarker = L.marker(state.point, { icon: youIcon, keyboard: false, interactive: false }).addTo(map);
+      if (zoom) fitScope();
+    }
+    function fitScope() {
+      if (!state.point) return;
+      const b = state.scope === 'region' && regionLayer ? regionLayer.getBounds() : radiusCircle.getBounds();
+      map.fitBounds(b, { padding: [70, 70], maxZoom: 11 });   // leave some surroundings visible
+    }
+
+    function searchPlace(q) {
+      q = q.trim();
+      if (!q) return;
+      state.message = 'Searching…'; state.matches = null; render();
+      fetch(`${GEOCODER}/search?format=jsonv2&countrycodes=ca&limit=5&q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(list => {
+          state.message = list.length ? '' : `No places in Canada found for “${q}”. Try a town name or postal code.`;
+          state.matches = list.map(p => ({ lat: +p.lat, lng: +p.lon, name: p.display_name }));
+          if (state.matches.length === 1) pickMatch(0); else render();
+        })
+        .catch(() => { state.message = 'Place search is not available right now. You can click the map instead.'; render(); });
+    }
+    function pickMatch(i) {
+      const m = state.matches[i];
+      setPoint({ lat: m.lat, lng: m.lng }, shortPlace(m.name), false);
+    }
+    const shortPlace = name => name.split(',').slice(0, 2).join(',').trim();
+
+    function reverseGeocode(latlng) {
+      const at = latlng;
+      fetch(`${GEOCODER}/reverse?format=jsonv2&zoom=12&lat=${at.lat}&lon=${at.lng}`)
+        .then(r => r.json())
+        .then(p => {
+          if (state.point !== at || !p || !p.address) return;
+          const a = p.address;
+          const town = a.city || a.town || a.village || a.hamlet || a.municipality || a.county || '';
+          state.place = [town, a.state].filter(Boolean).join(', ');
+          if (state.place) renderPlaceName();
+        })
+        .catch(() => {});
+    }
+
+    function useMyLocation() {
+      if (!navigator.geolocation) { state.message = 'Your browser can’t share its location. Try searching instead.'; render(); return; }
+      state.message = 'Finding your location…'; render();
+      navigator.geolocation.getCurrentPosition(
+        pos => setPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude }, null, false),
+        () => { state.message = 'We couldn’t get your location. Try searching or click the map.'; render(); },
+        { enableHighAccuracy: false, timeout: 10000 }
+      );
+    }
+
+    function resetPlace() {
+      state.point = null; state.region = null; state.open = null; state.place = '';
+      showSpeciesOnMap(null);
+      drawPlace(false);
+      render();
+    }
+
+    // ---------- Butterflies in the current scope ----------
+    function scopeObservations() {
+      if (scopeCache) return scopeCache;
+      const inYear = o => !state.year || o._year === state.year;
+      let obs;
+      if (state.scope === 'region') {
+        const id = state.region?.properties.id;
+        obs = observations.filter(o => o._region === id && inYear(o));
+      } else {
+        const r = state.radiusKm * 1000, p = state.point;
+        // quick box check first, then exact distance
+        const dLat = state.radiusKm / 111, dLng = dLat / Math.max(0.2, Math.cos(p.lat * Math.PI / 180));
+        obs = observations.filter(o => inYear(o) && Math.abs(o.lat - p.lat) <= dLat && Math.abs(o.lng - p.lng) <= dLng
+          && map.distance(p, [o.lat, o.lng]) <= r);
+      }
+      const species = new Map();
+      for (const o of obs) {
+        let s = species.get(o.scientificName);
+        if (!s) species.set(o.scientificName, s = { sci: o.scientificName, common: o.commonName, count: 0, months: new Array(12).fill(0), first: o.observedOn, last: o.observedOn });
+        s.count++; s.months[o._month]++;
+        if (o.observedOn < s.first) s.first = o.observedOn;
+        if (o.observedOn > s.last) s.last = o.observedOn;
+      }
+      return (scopeCache = { obs, species });
+    }
+    function statsFor(scope) {
+      const saved = [state.scope, scopeCache];
+      state.scope = scope; scopeCache = null;
+      const s = scopeObservations();
+      const out = { obs: s.obs.length, species: s.species.size };
+      [state.scope, scopeCache] = saved;
+      return out;
+    }
+
+    function visibleSpecies() {
+      let rows = [...scopeObservations().species.values()];
+      const q = state.q.trim().toLowerCase();
+      if (q) rows = rows.filter(s => (s.sci + ' ' + (s.common || '')).toLowerCase().includes(q));
+      if (state.flyingNow) rows = rows.filter(s => s.months[THIS_MONTH] > 0);
+      const name = s => s.common || s.sci;
+      const sorts = {
+        count: (a, b) => b.count - a.count || name(a).localeCompare(name(b)),
+        rare:  (a, b) => a.count - b.count || name(a).localeCompare(name(b)),
+        az:    (a, b) => name(a).localeCompare(name(b)),
+      };
+      return rows.sort(sorts[state.sort]);
     }
 
     // ---------- Render ----------
-    function renderMain() { viewMode === 'plants' ? renderPlantView() : renderListView(); }
-
-    // View A: butterfly list (Host/Nectar always shown)
-    function renderListView() {
-      const box = document.getElementById('main');
-      if (!selectedPoint) { box.innerHTML = '<p class="hint">Click the map to find butterflies near a spot.</p>'; return; }
-      if (currentSpecies.length === 0) { box.innerHTML = '<p class="hint">No butterflies found in range. Try a bigger radius, a wider time period, or another spot.</p>'; return; }
-
-      box.innerHTML = `<div class="col-head"><span class="h-bf">Butterflies</span><span class="h-pl">Plants</span></div>` +
-        currentSpecies.map(s => `
-          <div class="bf-row" data-name="${s.scientificName}">
-            ${SpeciesInfo.thumb(s.scientificName)}
-            <span class="bf-name">
-              <span class="bf-common">${s.commonName || s.scientificName}</span>
-              <span class="bf-sci">${s.scientificName}</span>
-            </span>
-            <span class="plants-cell">
-              <button class="toggle-btn" data-cat="host">Host</button>
-              <button class="toggle-btn" data-cat="nectar">Nectar</button>
-            </span>
-          </div>`).join('');
-
-      box.querySelectorAll('.toggle-btn').forEach(btn =>
-        btn.addEventListener('click', () => {
-          activeButterfly = btn.closest('.bf-row').dataset.name;
-          activeCategory = btn.dataset.cat; viewMode = 'plants'; renderMain();
-        }));
-      box.querySelectorAll('.bf-name').forEach(el =>
-        el.addEventListener('click', () => {
-          activeButterfly = el.closest('.bf-row').dataset.name;
-          viewMode = 'plants'; renderMain();     // opens with current activeCategory
-        }));
+    function render() {
+      updateHash();
+      const box = document.getElementById('content');
+      box.innerHTML = state.point ? resultsHTML() : startHTML();
+      wire(box);
     }
 
-    // View B: plant list with a clear segmented Host/Nectar control
-    function renderPlantView() {
-      const box = document.getElementById('main');
-      const sp = currentSpecies.find(s => s.scientificName === activeButterfly) || {};
-      const lists = enabledListsFor(activeButterfly);
+    function startHTML() {
+      const total = observations.length, sp = new Set(observations.map(o => o.scientificName)).size;
+      return `
+        <h2 class="lead">Where is your backyard?</h2>
+        <p class="sub">Find out which butterflies have been seen near you, when they fly, and which plants help them.</p>
+        <form class="search" id="placeForm" role="search">
+          <label class="sr-only" for="placeInput">Town, city or postal code</label>
+          <input id="placeInput" type="search" placeholder="Town, city or postal code" autocomplete="off">
+          <button class="btn primary" type="submit">${ICON.search}<span>Search</span></button>
+        </form>
+        ${state.matches && state.matches.length > 1 ? `<ul class="matches" aria-label="Places found">${state.matches.map((m, i) =>
+          `<li><button type="button" data-match="${i}">${esc(shortPlace(m.name))}<small>${esc(m.name)}</small></button></li>`).join('')}</ul>` : ''}
+        ${state.message ? `<p class="msg">${esc(state.message)}</p>` : ''}
+        <div class="or">or</div>
+        <button class="btn secondary full" type="button" id="locateBtn">${ICON.locate}<span>Use my location</span></button>
+        <p class="hint">You can also click anywhere on the map.</p>
+        ${total ? `<p class="canada">So far, BIMBY volunteers have logged <b>${fmt(total)}</b> sightings of <b>${sp}</b> butterfly species across Canada.
+          <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">Join the project on iNaturalist</a>.</p>` : ''}`;
+    }
 
-      let html = `<button class="back">&larr; Back to butterflies</button>
-        <div class="plant-head">
-          <span class="bf-name">
-            <span class="bf-common">${sp.commonName || activeButterfly}</span>
-            <span class="bf-sci">${activeButterfly}</span>
-          </span>
-          <span class="seg">
-            <button class="${activeCategory === 'host' ? 'on' : ''}" data-cat="host">Host</button>
-            <button class="${activeCategory === 'nectar' ? 'on' : ''}" data-cat="nectar">Nectar</button>
-          </span>
+    function resultsHTML() {
+      const near = statsFor('near'), reg = state.region ? statsFor('region') : null;
+      const rows = visibleSpecies();
+      const where = state.scope === 'near' ? `within ${state.radiusKm} km` : `in ${esc(state.region.properties.name)}`;
+      let html = `
+        <div class="place">
+          ${ICON.pin}<span class="name" id="placeName">${esc(state.place || 'Your spot')}</span>
+          <button class="link-btn" type="button" id="changeBtn">Change</button>
         </div>
-        ${SpeciesInfo.card(activeButterfly)}`;
+        <div class="scope" role="group" aria-label="Show butterflies">
+          <div class="tile" role="button" tabindex="0" data-scope="near" aria-pressed="${state.scope === 'near'}">
+            <div class="k">Near you</div>
+            <div class="t">Within <select id="radiusSel" aria-label="Distance">${RADII.map(r => `<option value="${r}" ${r === state.radiusKm ? 'selected' : ''}>${r} km</option>`).join('')}</select></div>
+            <div class="n">${near.species} <small>species</small></div>
+            <div class="s">${plural(near.obs, 'sighting')}</div>
+          </div>
+          <div class="tile" role="button" tabindex="${reg ? 0 : -1}" data-scope="region" aria-pressed="${state.scope === 'region'}" aria-disabled="${!reg}">
+            <div class="k">Your ecoregion</div>
+            <div class="t">${reg ? esc(state.region.properties.name) : 'Not in a mapped ecoregion'}</div>
+            ${reg ? `<div class="n">${reg.species} <small>species</small></div><div class="s">${plural(reg.obs, 'sighting')}</div>` : ''}
+          </div>
+        </div>
+        <button class="link-btn" type="button" id="ecoInfo" aria-expanded="${state.showEcoInfo}" style="font-size:13px;margin-bottom:6px">What’s an ecoregion?</button>
+        ${state.showEcoInfo ? `<p class="explain">An <b>ecoregion</b> is a natural area with similar climate, landforms, plants and wildlife.
+          Canada has 194 of them${state.region ? `; yours is part of the <b>${esc(state.region.properties.zoneName)}</b> ecozone` : ''}.
+          It shows which butterflies live in your wider area, not just close by.</p>` : ''}
+        <div class="filters">
+          <label class="sr-only" for="qInput">Search butterflies</label>
+          <input id="qInput" type="search" placeholder="Search butterflies" value="${esc(state.q)}">
+          <button class="chip" type="button" id="flyBtn" aria-pressed="${state.flyingNow}">Flying in ${MONTHS_LONG[THIS_MONTH]}</button>
+          <label class="sr-only" for="sortSel">Sort</label>
+          <select id="sortSel">
+            <option value="count" ${state.sort === 'count' ? 'selected' : ''}>Most seen</option>
+            <option value="rare" ${state.sort === 'rare' ? 'selected' : ''}>Rarest</option>
+            <option value="az" ${state.sort === 'az' ? 'selected' : ''}>A–Z</option>
+          </select>
+          ${allYears.length > 1 ? `<select id="yearSel" aria-label="Year"><option value="">All years</option>${allYears.slice().reverse().map(y =>
+            `<option ${y === state.year ? 'selected' : ''}>${y}</option>`).join('')}</select>` : ''}
+        </div>
+        <div class="count-line">${plural(rows.length, 'butterfly species', 'butterfly species')} ${where}${state.flyingNow ? `, seen in ${MONTHS_LONG[THIS_MONTH]}` : ''}</div>`;
 
-      if (lists.length === 0) {
-        html += '<p class="hint">No plant data for this species from the selected sources.</p>';
+      if (!rows.length) {
+        const nothing = scopeObservations().species.size === 0;
+        html += `<div class="empty">${nothing
+          ? `No butterfly sightings ${where} yet. Try a bigger distance, switch to your ecoregion, or be the first:
+             <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">add a sighting on iNaturalist</a>.`
+          : state.flyingNow ? `None of these butterflies have been recorded ${where} in ${MONTHS_LONG[THIS_MONTH]} yet.
+             <button class="link-btn" type="button" id="clearFly">Show all months</button>`
+          : `No butterflies match “${esc(state.q)}”.`}</div>`;
       } else {
-        const seen = new Map();
-        for (const l of lists)
-          for (const p of l.plants)
-            if ((activeCategory === 'host') === !!p.isHost && !seen.has(p.scientificName)) seen.set(p.scientificName, p);
-        const plants = [...seen.values()];
-        html += plants.length
-          ? `<ul>${plants.map(p => `<li>${p.commonName} <span class="bf-sci" style="display:inline">(${p.scientificName})</span>${p.bloom ? ` <span class="bloom">&middot; ${p.bloom}</span>` : ''}</li>`).join('')}</ul>`
-          : `<p class="hint">None listed as ${activeCategory} plants here.</p>`;
-        const srcs = [...new Map(lists.map(l => [l.source.url, l.source])).values()];
-        html += `<div class="source">Sources: ${srcs.map(s => `<a href="${s.url}" target="_blank" rel="noopener">${shortSource(s.org)} (${s.year})</a>`).join('; ')}</div>`;
+        html += `<div class="grid">${rows.map(s => s.sci === state.open ? detailHTML(s) : cardHTML(s)).join('')}</div>`;
       }
-      box.innerHTML = html;
 
-      box.querySelector('.back').addEventListener('click', () => { viewMode = 'list'; renderMain(); });
-      box.querySelectorAll('.seg button').forEach(btn =>
-        btn.addEventListener('click', () => { activeCategory = btn.dataset.cat; renderPlantView(); }));
+      html += `
+        <details class="about">
+          <summary>About this data</summary>
+          <p>Sightings are research-grade observations from the
+            <a href="${INAT_PROJECT}" target="_blank" rel="noopener">BIMBY project on iNaturalist</a>, logged by volunteers.
+            A butterfly missing from the list may simply not have been reported here yet.</p>
+          <p>Descriptions come from Wikipedia and photos from iNaturalist photographers (credited on each butterfly).
+            Plant lists come from the Xerces Society. Ecoregions: Agriculture and Agri-Food Canada.</p>
+        </details>`;
+      return html;
     }
 
+    function cardHTML(s) {
+      const p = SpeciesInfo.get(s.sci)?.photo;
+      return `
+        <button class="card" type="button" data-sci="${esc(s.sci)}" aria-expanded="false">
+          <div class="ph">${p ? `<img src="${esc(p.url || p.square)}" alt="" loading="lazy">` : 'No photo yet'}</div>
+          <div class="meta">
+            <div class="cn">${esc(s.common || s.sci)}</div>
+            <div class="sn">${esc(s.sci)}</div>
+            <div class="ct">${plural(s.count, 'sighting')}</div>
+          </div>
+        </button>`;
+    }
+
+    function detailHTML(s) {
+      const lists = plantIndex[s.sci] || [];
+      const list = lists.find(l => l.id === state.listId) || lists[0];
+      const plants = list ? list.plants.filter(p => (state.plantCat === 'host') === !!p.isHost) : [];
+      const where = state.scope === 'near' ? `within ${state.radiusKm} km` : `in ${esc(state.region.properties.name)}`;
+      const total = observations.filter(o => o.scientificName === s.sci).length;
+      const peak = s.months.indexOf(Math.max(...s.months));
+      return `
+        <article class="detail" id="detail" aria-label="${esc(s.common || s.sci)}">
+          <div class="detail-head">
+            <div class="names"><h3>${esc(s.common || s.sci)}</h3><div class="sn">${esc(s.sci)}</div></div>
+            <button class="close-btn" type="button" id="closeDetail">Close</button>
+          </div>
+          <div class="facts">
+            <span><b>${plural(s.count, 'sighting')}</b> ${where}</span>
+            <span>Most seen in <b>${MONTHS_LONG[peak]}</b></span>
+            <span>Last seen <b>${fmtDate(s.last)}</b></span>
+          </div>
+          ${SpeciesInfo.card(s.sci)}
+
+          <h4>When it flies here</h4>
+          <div class="chart">${monthChart(s.months)}</div>
+
+          <h4>Plants for your garden</h4>
+          <div class="seg" role="group" aria-label="Plant type">
+            <button type="button" data-cat="host" aria-pressed="${state.plantCat === 'host'}">Caterpillar food (host)</button>
+            <button type="button" data-cat="nectar" aria-pressed="${state.plantCat === 'nectar'}">Adult food (nectar)</button>
+          </div>
+          ${!list ? `<p class="note">We don’t have a plant list for this butterfly yet.</p>` : `
+            ${lists.length > 1 ? `<select class="list-select" id="listSel" aria-label="Plant list">${lists.map(l =>
+              `<option value="${esc(l.id)}" ${l === list ? 'selected' : ''}>${esc(l.region)} — ${esc(shortSource(l.source.org))} (${l.source.year})</option>`).join('')}</select>`
+              : `<p class="note" style="margin-bottom:6px">List for: ${esc(list.region)}</p>`}
+            ${plants.length ? `<ul class="plants">${plants.map(p => `<li><span>${esc(p.commonName)} <i>${esc(p.scientificName)}</i></span>${p.bloom ? `<span class="bloom">Blooms ${esc(p.bloom)}</span>` : ''}</li>`).join('')}</ul>`
+              : `<p class="note">None listed as ${state.plantCat === 'host' ? 'host' : 'nectar'} plants in this list.</p>`}
+            <p class="cite">Source: <a href="${esc(list.source.url)}" target="_blank" rel="noopener">${esc(list.source.title)}</a>, ${esc(shortSource(list.source.org))} (${list.source.year}).</p>`}
+
+          <div class="map-row">
+            <button class="btn ${state.mapped === s.sci ? 'secondary' : 'primary'}" type="button" id="mapBtn">
+              ${state.mapped === s.sci ? 'Stop showing on map' : 'Show where it’s been seen'}</button>
+            <span class="s">${plural(total, 'sighting')} across Canada</span>
+          </div>
+        </article>`;
+    }
     function shortSource(org) { return /xerces/i.test(org) ? 'Xerces Society' : org; }
 
-    // ---------- Settings: chips (plant chips grouped by source org) ----------
-    function buildChips() {
-      const occ = document.getElementById('occChips');
-      occ.innerHTML = OCC_SOURCES.map(s =>
-        `<button class="chip ${enabledOccSources.has(s.id) ? 'on' : ''}" data-id="${s.id}">${s.label}</button>`).join('');
-      occ.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
-        toggle(enabledOccSources, c.dataset.id); c.classList.toggle('on');
-      }));
-
-      // Group plant lists by source org so there's one chip per source (e.g. "Xerces Society")
-      const byOrg = {};
-      for (const l of plantLists) (byOrg[l.source.org] ??= []).push(l.id);
-
-      const plant = document.getElementById('plantChips');
-      plant.innerHTML = Object.entries(byOrg).map(([org, ids]) => {
-        const on = ids.some(id => enabledPlantSources.has(id));
-        return `<button class="chip ${on ? 'on' : ''}" data-ids="${ids.join(',')}">${shortSource(org)}</button>`;
-      }).join('');
-      plant.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
-        const ids = c.dataset.ids.split(',');
-        const turnOn = !ids.some(id => enabledPlantSources.has(id));   // if any on -> turn all off, else on
-        ids.forEach(id => turnOn ? enabledPlantSources.add(id) : enabledPlantSources.delete(id));
-        c.classList.toggle('on', turnOn);
-        renderMain();
-      }));
+    function monthChart(months) {
+      const W = 400, H = 110, padL = 30, padB = 20, padT = 8, iw = W - padL - 4, ih = H - padB - padT;
+      const max = Math.max(1, ...months), step = iw / 12, bw = step * 0.66;
+      const top = max <= 5 ? max : Math.ceil(max / 5) * 5;
+      let g = `<line x1="${padL}" x2="${W - 4}" y1="${padT + ih}" y2="${padT + ih}" stroke="#e4e1d6"/>` +
+              `<text x="${padL - 5}" y="${padT + 8}" text-anchor="end">${fmt(top)}</text>` +
+              `<text x="${padL - 5}" y="${padT + ih}" text-anchor="end">0</text>`;
+      months.forEach((v, i) => {
+        const h = ih * v / top, x = padL + step * i + (step - bw) / 2, y = padT + ih - h, r = Math.min(3, h);
+        g += `<g><title>${MONTHS_LONG[i]}: ${plural(v, 'sighting')}</title>` +
+             `<rect x="${padL + step * i}" y="${padT}" width="${step}" height="${ih}" fill="transparent"/>` +
+             (h > 0 ? `<path class="bar ${i === THIS_MONTH ? 'now' : ''}" d="M${x},${padT + ih} V${y + r} Q${x},${y} ${x + r},${y} H${x + bw - r} Q${x + bw},${y} ${x + bw},${y + r} V${padT + ih} Z"/>` : '') +
+             `<text x="${padL + step * i + step / 2}" y="${H - 5}" text-anchor="middle" ${i === THIS_MONTH ? 'style="fill:#1f261b;font-weight:700"' : ''}>${MONTHS[i][0]}</text></g>`;
+      });
+      return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sightings by month">${g}</svg>`;
     }
-    function toggle(set, id) { set.has(id) ? set.delete(id) : set.add(id); }
 
-    // ---------- Settings: collapse + radius ----------
-    document.getElementById('settingsHead').addEventListener('click', () => {
-      document.getElementById('settingsHead').classList.toggle('collapsed');
-      document.getElementById('settingsBody').classList.toggle('hidden');
-    });
-    const slider = document.getElementById('radiusSlider');
-    const radiusVal = document.getElementById('radiusVal');
-    slider.addEventListener('input', () => {
-      radiusM = Number(slider.value) * 1000;
-      radiusVal.textContent = `${slider.value} km`;
-      if (radiusCircle) radiusCircle.setRadius(radiusM);
-    });
-    slider.addEventListener('change', runQuery);
+    function renderPlaceName() {
+      const el = document.getElementById('placeName');
+      if (el) el.textContent = state.place || 'Your spot';
+    }
 
-    // ---------- Settings: time period ----------
-    const timeStart = document.getElementById('timeStart');
-    const timeEnd = document.getElementById('timeEnd');
+    // ---------- Events ----------
+    function wire(box) {
+      const on = (sel, ev, fn) => box.querySelector(sel)?.addEventListener(ev, fn);
 
-    function initTimeSlider() {
-      const times = observations.map(o => Date.parse(o.observedOn)).filter(t => !isNaN(t));
-      baseDateMs = Math.min(...times);
-      const maxDay = Math.round((Math.max(...times) - baseDateMs) / DAY_MS);
-      for (const o of observations) {
-        const t = Date.parse(o.observedOn);
-        o._day = isNaN(t) ? -1 : Math.round((t - baseDateMs) / DAY_MS);
+      on('#placeForm', 'submit', e => { e.preventDefault(); searchPlace(box.querySelector('#placeInput').value); });
+      box.querySelectorAll('[data-match]').forEach(b => b.addEventListener('click', () => pickMatch(+b.dataset.match)));
+      on('#locateBtn', 'click', useMyLocation);
+      on('#changeBtn', 'click', resetPlace);
+
+      const pickScope = t => {
+        if (t.getAttribute('aria-disabled') === 'true' || state.scope === t.dataset.scope) return;
+        state.scope = t.dataset.scope; state.open = null; scopeCache = null;
+        drawPlace(false); fitScope(); render();
+      };
+      box.querySelectorAll('.tile').forEach(t => {
+        t.addEventListener('click', e => { if (!e.target.closest('select')) pickScope(t); });
+        t.addEventListener('keydown', e => {
+          if ((e.key === 'Enter' || e.key === ' ') && e.target === t) { e.preventDefault(); pickScope(t); }
+        });
+      });
+      on('#radiusSel', 'change', e => {
+        state.radiusKm = +e.target.value; state.scope = 'near'; state.open = null; scopeCache = null;
+        drawPlace(false); fitScope(); render();
+      });
+      on('#ecoInfo', 'click', () => { state.showEcoInfo = !state.showEcoInfo; render(); });
+
+      const q = box.querySelector('#qInput');
+      q?.addEventListener('input', () => {
+        state.q = q.value; const pos = q.selectionStart; render();
+        const n = document.getElementById('qInput'); n.focus(); n.setSelectionRange(pos, pos);
+      });
+      on('#flyBtn', 'click', () => { state.flyingNow = !state.flyingNow; render(); });
+      on('#clearFly', 'click', () => { state.flyingNow = false; render(); });
+      on('#sortSel', 'change', e => { state.sort = e.target.value; render(); });
+      on('#yearSel', 'change', e => { state.year = e.target.value; scopeCache = null; state.open = null; render(); drawSpeciesDots(false); });
+
+      box.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => {
+        state.open = c.dataset.sci; state.listId = null; render();
+        const d = document.getElementById('detail');
+        d?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        document.getElementById('closeDetail')?.focus({ preventScroll: true });
+      }));
+      on('#closeDetail', 'click', () => {
+        const sci = state.open; state.open = null; render();
+        box.querySelector(`.card[data-sci="${CSS.escape(sci)}"]`)?.focus();
+      });
+      box.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { state.plantCat = b.dataset.cat; render(); }));
+      on('#listSel', 'change', e => { state.listId = e.target.value; render(); });
+      on('#mapBtn', 'click', () => showSpeciesOnMap(state.mapped === state.open ? null : state.open));
+    }
+
+    // ---------- One butterfly's sightings as dots ----------
+    function showSpeciesOnMap(sci) {
+      state.mapped = sci;
+      drawSpeciesDots(true);
+      if (state.point) render();
+    }
+    function drawSpeciesDots(zoom) {
+      dotLayer?.remove(); dotLayer = null;
+      if (!state.mapped) { banner.remove(); return; }
+      const pts = observations.filter(o => o.scientificName === state.mapped && (!state.year || o._year === state.year));
+      const name = pts[0]?.commonName || state.mapped;
+      dotLayer = L.layerGroup(pts.map(o => L.circleMarker([o.lat, o.lng], {
+        renderer: dotRenderer, radius: 4, weight: 1, color: '#ffffff', fillColor: '#e79a3c', fillOpacity: 0.9,
+      }).bindTooltip(`${esc(name)} · ${fmtDate(o.observedOn)}`))).addTo(map);
+      if (zoom && pts.length) map.fitBounds(L.latLngBounds(pts.map(o => [o.lat, o.lng])), { padding: [30, 30], maxZoom: 9 });
+      if (!banner.getContainer() || !banner.getContainer().parentNode) banner.addTo(map);
+      const d = banner.getContainer();
+      d.innerHTML = `<span class="dot"></span><span>Showing <b>${esc(name)}</b> · ${plural(pts.length, 'sighting')}</span><button type="button">Clear</button>`;
+      d.querySelector('button').addEventListener('click', () => showSpeciesOnMap(null));
+    }
+
+    // ---------- Shareable link: #at=lat,lng&r=15&view=region ----------
+    function updateHash() {
+      const parts = [];
+      if (state.point) {
+        parts.push(`at=${state.point.lat.toFixed(4)},${state.point.lng.toFixed(4)}`);
+        if (state.radiusKm !== 15) parts.push(`r=${state.radiusKm}`);
+        if (state.scope === 'region') parts.push('view=region');
       }
-      for (const el of [timeStart, timeEnd]) el.max = maxDay;
-      timeStart.value = startDay = 0;
-      timeEnd.value = endDay = maxDay;
-      updateTimeUI();
+      const s = parts.join('&');
+      history.replaceState(null, '', location.pathname + location.search + (s ? '#' + s : ''));
     }
-
-    function dayLabel(day, withYear) {
-      return new Date(baseDateMs + day * DAY_MS).toLocaleDateString('en-CA',
-        { month: 'short', day: 'numeric', timeZone: 'UTC', ...(withYear ? { year: 'numeric' } : {}) });
+    function restoreFromHash() {
+      const h = new URLSearchParams(location.hash.slice(1));
+      const at = (h.get('at') || '').split(',').map(Number);
+      if (at.length !== 2 || at.some(isNaN)) return false;
+      if (RADII.includes(+h.get('r'))) state.radiusKm = +h.get('r');
+      if (h.get('view') === 'region') state.scope = 'region';
+      setPoint({ lat: at[0], lng: at[1] }, null, false);
+      return true;
     }
-
-    function updateTimeUI() {
-      const max = Number(timeEnd.max) || 1;
-      const multiYear = new Date(baseDateMs).getUTCFullYear() !== new Date(baseDateMs + max * DAY_MS).getUTCFullYear();
-      document.getElementById('timeVal').textContent =
-        startDay === endDay ? dayLabel(startDay, multiYear) : `${dayLabel(startDay, multiYear)} – ${dayLabel(endDay, multiYear)}`;
-      const fill = document.getElementById('timeFill');
-      fill.style.left = `calc(8px + (100% - 16px) * ${startDay / max})`;
-      fill.style.width = `calc((100% - 16px) * ${(endDay - startDay) / max})`;
-      // If both handles sit at the far right, keep the start handle grabbable
-      timeStart.style.zIndex = startDay > max - 1 ? 3 : 1;
-      timeEnd.style.zIndex = 2;
-    }
-
-    timeStart.addEventListener('input', () => {
-      startDay = Math.min(Number(timeStart.value), endDay);
-      timeStart.value = startDay; updateTimeUI();
-    });
-    timeEnd.addEventListener('input', () => {
-      endDay = Math.max(Number(timeEnd.value), startDay);
-      timeEnd.value = endDay; updateTimeUI();
-    });
-    timeStart.addEventListener('change', runQuery);
-    timeEnd.addEventListener('change', runQuery);
   </script>
 
   <script src="dev-switcher.js"></script>

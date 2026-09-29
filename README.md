@@ -18,7 +18,7 @@ Then open <http://localhost:8000>
     option-a.html                  Design option A: browse by ecoregion
     option-b.html                  Design option B: ecoregion atlas (popup with species
                                    list, year charts, flight season, compare regions)
-    option-c.html                  Design option C (placeholder for now)
+    option-c.html                  Design option C: "Your backyard" (location-first, photo cards)
     dev-switcher.js                Dev-mode option switcher (open any page with ?dev)
     species-info.js                Species photos + descriptions, shared by all pages
     data/                          (git-ignored)
@@ -122,6 +122,25 @@ dot (canvas layer, so thousands of points stay fast), filtered by the time perio
 The sidebar colours the map by species or sightings, can map a single species, and
 filters by year. The popup footer downloads the species list as CSV and copies a link;
 the open region, tab and year are kept in the URL (e.g. `option-b.html#region=209&tab=season`).
+
+## Option C — "Your backyard"
+
+A location-first version for the public, mixing the radius map with ecoregions:
+
+- **Start:** one question, "Where is your backyard?" — search a town or postal code
+  (OpenStreetMap's Nominatim geocoder, limited to Canada; light use only, searches run
+  on submit, not per keystroke), **Use my location** (browser geolocation; needs
+  localhost or https), or click the map.
+- **Two levels of answer:** "Near you" (5 / 15 / 30 / 50 km) and "Your ecoregion"
+  (found by point-in-polygon on `ecoregions.geojson`), each with species and sighting
+  counts; click to switch. A short "What's an ecoregion?" explanation on demand.
+- **Butterflies as photo cards**, filterable by name, "Flying in <this month>", sort, and
+  year (the year menu appears only once there is more than one year of data). A card opens
+  in place with the photo and description, a month-by-month chart, host (caterpillar) and
+  nectar (adult) plants, and "Show where it's been seen" (dots on the map).
+- Clicking the map reverse-geocodes a place name. The spot, distance and view are kept in
+  the URL (e.g. `option-c.html#at=43.6535,-79.3839&r=30&view=region`).
+- On narrow screens the map sits on top and the results scroll below it.
 
 ## `plant-lists.json` structure
 
