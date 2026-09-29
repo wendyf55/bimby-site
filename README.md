@@ -16,7 +16,9 @@ Then open <http://localhost:8000>
 
     index.html                     The whole app (map + interaction)
     option-a.html                  Design option A: browse by ecoregion
-    option-b.html, option-c.html   Design options B, C (placeholders for now)
+    option-b.html                  Design option B: ecoregion atlas (popup with species
+                                   list, year charts, flight season, compare regions)
+    option-c.html                  Design option C (placeholder for now)
     dev-switcher.js                Dev-mode option switcher (open any page with ?dev)
     data/                          (git-ignored)
       observations.json            Butterfly observations used by the app (generated)
@@ -24,10 +26,11 @@ Then open <http://localhost:8000>
       observations-782254.csv/     Raw iNaturalist export (kept for provenance)
       ecoregions.geojson           Simplified ecoregion outlines (generated)
       observation-ecoregions.json  Observation id -> ecoregion id (generated)
+      ecozones.geojson             Ecozone outlines (generated; not currently used)
       raw/                         Ecoregion + ecozone shapefile zips from AAFC
     scripts/
       build_observations.py        Rebuilds observations.json from the raw CSV
-      build_ecoregions.py          Builds the two ecoregion files above
+      build_ecoregions.py          Builds the three ecoregion/ecozone files above
 
 ## Data sources
 
@@ -57,7 +60,7 @@ Then open <http://localhost:8000>
 - **Caveat:** these lists are **Monarch-specific**. Plant data for other species
   will need additional sources.
 
-### Ecoregions — National Ecological Framework for Canada (used by option-a.html)
+### Ecoregions — National Ecological Framework for Canada (used by option-a.html and option-b.html)
 
 - **Source:** Agriculture and Agri-Food Canada, *A National Ecological Framework for
   Canada* — ecoregion and ecozone shapefiles, from
@@ -71,6 +74,26 @@ Then open <http://localhost:8000>
   - `data/observation-ecoregions.json` — `{observation id: ecoregion id}`. Points
     just off the coast snap to the nearest ecoregion within ~5 km; a handful outside
     Canada are left untagged.
+  - `data/ecozones.geojson` — the 15 ecozones, merged from the simplified ecoregions
+    (so their borders line up exactly). Not used by any page right now.
+
+## Option B — ecoregion atlas
+
+Modelled on the [Ontario Butterfly Atlas](https://www.ontarioinsects.org/atlas/).
+Click an ecoregion to open a popup with:
+
+- **Species list** — search; sort by most seen, rarest, A–Z or earliest in the year;
+  first/last sighting dates. Click a species for its monthly sightings plus host &
+  nectar plants.
+- **Overview** — sightings by year and species by year (one bar per year; new years
+  appear automatically as data is added), plus the top 5 species.
+- **Flight season** — sightings per 10-day period with earliest / 10% / median / 90% /
+  latest dates.
+- **Compare regions** — ranking against the other ecoregions in the same ecozone.
+
+The sidebar colours the map by species or sightings, can map a single species, and
+filters by year. The popup footer downloads the species list as CSV and copies a link;
+the open region, tab and year are kept in the URL (e.g. `option-b.html#region=209&tab=season`).
 
 ## `plant-lists.json` structure
 

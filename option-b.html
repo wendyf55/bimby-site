@@ -11,25 +11,28 @@
 
   <style>
     :root {
-      /* Tonal green family */
-      --green-900: #22301b;   /* settings footer (deepest) */
-      --green-800: #33472a;   /* sidebar base */
-      --green-700: #3e5433;   /* surfaces / hover */
+      /* Tonal green family (same as the other pages) */
+      --green-900: #22301b;
+      --green-800: #33472a;
+      --green-700: #3e5433;
       --line:      rgba(255, 255, 255, 0.13);
-
-      /* Text */
-      --ink:     #f4f6f0;
-      --ink-dim: rgba(244, 246, 240, 0.60);
-
-      /* Single warm accent (monarch amber) for all active states */
+      --ink:       #f4f6f0;
+      --ink-dim:   rgba(244, 246, 240, 0.60);
       --accent:      #e79a3c;
       --accent-ink:  #2b1d06;
-
-      /* Neutral translucent button surface */
+      --accent-dark: #b8691c;
       --surface:       rgba(255, 255, 255, 0.10);
       --surface-hover: rgba(255, 255, 255, 0.18);
 
-      --sidebar-w: 440px;
+      /* Light popup card */
+      --card:      #fbfaf6;
+      --card-ink:  #1f261b;
+      --card-dim:  #6a7263;
+      --card-line: #e4e1d6;
+      --card-soft: #f1efe7;
+
+      --sidebar-w: 340px;
+      --popup-w: 600px;
     }
 
     * { box-sizing: border-box; }
@@ -37,464 +40,760 @@
     body {
       margin: 0;
       font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-      font-size: 16px;
+      font-size: 15px;
       color: var(--ink);
       -webkit-font-smoothing: antialiased;
     }
 
     #layout { display: flex; height: 100vh; }
 
+    /* ---------- Sidebar ---------- */
     #sidebar {
       width: var(--sidebar-w);
       flex: 0 0 var(--sidebar-w);
       background: var(--green-800);
-      color: var(--ink);
       display: flex;
       flex-direction: column;
       height: 100%;
       box-shadow: 2px 0 12px rgba(0, 0, 0, 0.18);
-      z-index: 1000;
+      z-index: 1001;
     }
-
-    #map { flex: 1; height: 100%; }
-
-    /* App header */
-    .app-head {
-      padding: 16px 18px 14px;
-      border-bottom: 1px solid var(--line);
+    .app-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--line); position: relative; }
+    #hideSide {
+      position: absolute; right: 12px; top: 14px; border: 0; background: transparent;
+      color: var(--ink-dim); font-size: 24px; line-height: 1; cursor: pointer; padding: 2px 6px;
     }
-    .app-title {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: 0.14em;
+    #hideSide:hover { color: var(--ink); }
+    #layout.side-hidden #sidebar { display: none; }
+    #showSide {
+      position: absolute; left: 58px; top: 10px; z-index: 1001; display: none;
+      background: var(--green-800); color: var(--ink); border: 0; border-radius: 8px;
+      padding: 8px 14px; font: inherit; font-size: 13px; cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
-    .app-sub {
-      font-size: 12px;
-      color: var(--ink-dim);
-      margin-top: 2px;
-      letter-spacing: 0.02em;
+    #showSide:hover { background: var(--green-700); }
+    #layout.side-hidden #showSide { display: block; }
+    .app-title { font-size: 20px; font-weight: 700; letter-spacing: 0.14em; }
+    .app-sub { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+    #side { flex: 1 1 0; overflow-y: auto; padding: 4px 20px 20px; }
+
+    .label {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--ink-dim); margin: 20px 0 8px;
     }
-
-    /* Main scroll area */
-    #main { flex: 1 1 0; overflow-y: auto; padding: 0 18px 18px; }
-    #main::-webkit-scrollbar { width: 8px; }
-    #main::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 4px; }
-
-    .hint { color: var(--ink-dim); font-size: 0.9em; padding-top: 16px; line-height: 1.5; }
-
-    /* Sticky column header */
-    .col-head {
-      position: sticky;
-      top: 0;
-      background: var(--green-800);
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      padding: 16px 0 10px;
-      margin-bottom: 2px;
-      border-bottom: 1px solid var(--line);
-      z-index: 2;
-    }
-    .col-head .h-bf { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
-    .col-head .h-pl { font-size: 11px; font-weight: 600; text-transform: uppercase;
-                      letter-spacing: 0.12em; color: var(--ink-dim); }
-
-    /* Butterfly rows */
-    .bf-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 4px;
-      border-bottom: 1px solid var(--line);
-    }
-    .bf-row:hover { background: var(--surface); }
-    .bf-name { flex: 1; min-width: 0; cursor: pointer; }
-    .bf-common { display: block; font-size: 16px; font-weight: 600; line-height: 1.25; }
-    .bf-sci { display: block; font-style: italic; color: var(--ink-dim); font-size: 13px; margin-top: 1px; }
-
-    .plants-cell { display: flex; gap: 8px; flex: 0 0 auto; }
-
-    /* Neutral action buttons (list rows) */
-    .toggle-btn {
-      background: var(--surface);
-      color: var(--ink);
-      border: 1px solid transparent;
-      padding: 7px 14px;
-      border-radius: 999px;
-      cursor: pointer;
-      font-size: 13px;
-      font-family: inherit;
-      transition: background 0.12s, border-color 0.12s;
-    }
-    .toggle-btn:hover { background: var(--surface-hover); border-color: var(--accent); }
-
-    /* Segmented control (plant view) */
-    .seg {
-      display: inline-flex;
-      border: 1px solid rgba(255, 255, 255, 0.30);
-      border-radius: 999px;
-      overflow: hidden;
-    }
+    .seg { display: flex; background: var(--surface); border-radius: 8px; padding: 3px; gap: 3px; }
     .seg button {
-      background: transparent;
-      color: var(--ink-dim);
-      border: none;
-      padding: 7px 18px;
-      cursor: pointer;
-      font-size: 13px;
-      font-family: inherit;
-      transition: background 0.12s, color 0.12s;
+      flex: 1; border: 0; background: transparent; color: var(--ink); padding: 7px 4px;
+      border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer;
     }
-    .seg button + button { border-left: 1px solid rgba(255, 255, 255, 0.30); }
-    .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+    .seg button:hover { background: var(--surface-hover); }
+    .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 
-    /* Plant view */
-    .back {
-      background: none; border: none; color: var(--ink-dim); cursor: pointer;
-      padding: 14px 0 6px; font-size: 13px; font-family: inherit;
+    #side select {
+      width: 100%; background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+      border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 14px;
     }
-    .back:hover { color: var(--ink); }
-    .plant-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
-    #main ul { margin: 12px 0 0; padding-left: 20px; }
-    #main li { margin-bottom: 6px; line-height: 1.4; }
-    .bloom { color: var(--ink-dim); font-size: 0.85em; }
-    .source { font-size: 12px; color: var(--ink-dim); margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); line-height: 1.5; }
-    .source a { color: var(--accent); text-decoration: none; }
-    .source a:hover { text-decoration: underline; }
+    #side select option { color: #000; }
 
-    /* Settings footer */
-    #settings { flex: 0 0 auto; background: var(--green-900); border-top: 1px solid var(--line); }
-    .settings-head {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 18px; cursor: pointer; user-select: none;
-      font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+    .legend { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+    .legend i {
+      display: inline-block; width: 16px; height: 12px; border-radius: 3px; margin-right: 8px;
+      vertical-align: -1px; border: 1px solid rgba(0, 0, 0, 0.25);
     }
-    .settings-head .chev { transition: transform 0.15s; color: var(--ink-dim); }
-    .settings-head.collapsed .chev { transform: rotate(-90deg); }
-    .settings-body { padding: 0 18px 16px; }
-    .settings-body.hidden { display: none; }
-    .settings-body label {
-      display: block; margin: 12px 0 6px;
-      font-size: 11px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--ink-dim);
+    .totals { font-size: 13px; line-height: 1.6; color: var(--ink-dim); }
+    .totals b { color: var(--ink); }
+    .side-hint { font-size: 13px; color: var(--ink-dim); line-height: 1.5; margin-top: 18px; }
+
+    /* ---------- Map ---------- */
+    #mapwrap { flex: 1; position: relative; overflow: hidden; }
+    #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
+    #mapwrap.popopen #map { right: calc(var(--popup-w) + 24px); }
+    .leaflet-tooltip.eco-tip { font: 13px "Helvetica Neue", Helvetica, Arial, sans-serif; }
+    .eco-tip .t-sub { color: #666; font-size: 12px; }
+
+    /* ---------- Popup card ---------- */
+    #popup {
+      position: absolute; top: 14px; right: 14px; bottom: 14px; width: var(--popup-w);
+      max-width: calc(100% - 28px);
+      background: var(--card); color: var(--card-ink); border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+      display: none; flex-direction: column; overflow: hidden; z-index: 1000;
+    }
+    #popup.open { display: flex; }
+    .pop-head { padding: 18px 22px 0; position: relative; }
+    .eyebrow { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--card-dim); font-weight: 600; padding-right: 30px; }
+    .pop-head h2 { margin: 2px 0 12px; font-size: 24px; letter-spacing: -0.01em; padding-right: 30px; }
+    .close {
+      position: absolute; right: 14px; top: 12px; border: 0; background: transparent;
+      font-size: 26px; color: var(--card-dim); cursor: pointer; line-height: 1;
+    }
+    .close:hover { color: var(--card-ink); }
+    .stats { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 8px; margin-bottom: 14px; }
+    .stat { background: var(--card-soft); border-radius: 10px; padding: 8px 10px; }
+    .stat .n { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .n.small { font-size: 15px; padding-top: 4px; }
+    .stat .k { font-size: 11px; color: var(--card-dim); }
+
+    .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--card-line); padding: 0 16px; }
+    .tabs button {
+      border: 0; background: transparent; padding: 10px 12px; font: inherit; font-size: 14px;
+      color: var(--card-dim); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px;
+    }
+    .tabs button:hover { color: var(--card-ink); }
+    .tabs button.on { color: var(--card-ink); font-weight: 600; border-bottom-color: var(--accent); }
+    .pop-body { padding: 16px 22px 20px; overflow: auto; flex: 1; }
+    .pop-foot {
+      border-top: 1px solid var(--card-line); padding: 10px 22px; font-size: 12px; color: var(--card-dim);
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    }
+    .pop-foot button {
+      border: 0; background: none; color: #7a3d0a; font: inherit; font-size: 12px; cursor: pointer; padding: 0 0 0 12px;
+    }
+    .pop-foot button:hover { text-decoration: underline; }
+
+    .empty { padding: 18px 20px; background: var(--card-soft); border-radius: 10px; color: var(--card-dim); font-size: 13px; line-height: 1.5; }
+    .empty a { color: #7a3d0a; }
+
+    /* Charts */
+    .chart { margin-bottom: 22px; }
+    .chart-title { font-weight: 600; font-size: 14px; margin: 0 0 2px; }
+    .chart-sub { font-size: 12px; color: var(--card-dim); margin: 0 0 8px; }
+    .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .chart text { font-size: 11px; fill: var(--card-dim); font-family: inherit; }
+    .chart .bar { fill: var(--accent); }
+    .chart .hit:hover + .bar { fill: var(--accent-dark); }
+    .chart text.val { fill: var(--card-ink); font-weight: 600; }
+    #tip {
+      position: fixed; pointer-events: none; background: #1f261b; color: #fff; font-size: 12px;
+      padding: 6px 9px; border-radius: 6px; display: none; z-index: 5000; white-space: nowrap;
     }
 
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-    .chip {
-      background: transparent;
-      color: var(--ink);
-      border: 1px solid rgba(255, 255, 255, 0.30);
-      padding: 6px 12px;
-      border-radius: 999px;
-      cursor: pointer;
-      font-size: 12px;
-      font-family: inherit;
-      transition: background 0.12s, color 0.12s, border-color 0.12s;
-    }
-    .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+    .rank-row { display: grid; grid-template-columns: 170px 1fr 48px; gap: 10px; align-items: center; font-size: 13px; padding: 3px 0; }
+    .rank-row .track { background: #eeebe2; border-radius: 3px; height: 12px; }
+    .rank-row .fill { background: var(--accent); height: 12px; border-radius: 3px; opacity: 0.55; }
+    .rank-row.me { font-weight: 700; }
+    .rank-row.me .fill, .rank-row.solid .fill { opacity: 1; }
+    .rank-row .v { text-align: right; font-variant-numeric: tabular-nums; }
+    .rank-row.link { cursor: pointer; }
+    .rank-row.link:hover span:first-child { text-decoration: underline; }
 
-    .radius-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
-    .radius-row input[type=range] { flex: 1; accent-color: var(--accent); }
-    .radius-val { min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; }
+    .fs-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 6px 0 16px; font-size: 12px; }
+    .fs-stats div { background: var(--card-soft); border-radius: 8px; padding: 6px 8px; color: var(--card-dim); }
+    .fs-stats b { display: block; font-size: 14px; color: var(--card-ink); }
 
-    /* Time period: dual-handle range slider */
-    .range2 { position: relative; flex: 1; height: 24px; }
-    .range2 .track, .range2 .fill {
-      position: absolute; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px;
+    /* Species list */
+    .sp-tools { display: flex; gap: 8px; margin-bottom: 10px; }
+    .sp-tools input, .sp-tools select, .list-select {
+      background: #fff; color: var(--card-ink); border: 1px solid var(--card-line); border-radius: 8px;
+      padding: 8px 10px; font: inherit; font-size: 14px;
     }
-    .range2 .track { left: 0; right: 0; background: rgba(255, 255, 255, 0.25); }
-    .range2 .fill { background: var(--accent); }
-    .range2 input[type=range] {
-      position: absolute; left: 0; top: 0; width: 100%; height: 24px; margin: 0;
-      background: none; pointer-events: none; -webkit-appearance: none; appearance: none;
+    .sp-tools input { flex: 1; min-width: 0; }
+    table.sp { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.sp th {
+      text-align: left; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--card-dim);
+      font-weight: 600; padding: 6px; border-bottom: 1px solid var(--card-line); position: sticky; top: -16px; background: var(--card);
     }
-    .range2 input[type=range]::-webkit-slider-runnable-track { background: none; height: 24px; }
-    .range2 input[type=range]::-moz-range-track { background: none; }
-    .range2 input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none; pointer-events: auto; cursor: pointer;
-      width: 16px; height: 16px; margin-top: 4px; border-radius: 50%;
-      background: var(--accent); border: 2px solid var(--green-900);
-    }
-    .range2 input[type=range]::-moz-range-thumb {
-      pointer-events: auto; cursor: pointer;
-      width: 12px; height: 12px; border-radius: 50%;
-      background: var(--accent); border: 2px solid var(--green-900);
-    }
-    .time-val { min-width: 118px; text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; }
+    table.sp td { padding: 7px 6px; border-bottom: 1px solid #eeebe2; vertical-align: top; }
+    table.sp tr.row { cursor: pointer; }
+    table.sp tr.row:hover td { background: #f5f2e8; }
+    table.sp tr.row.hl td { background: #fdf0dc; }
+    table.sp .sci { font-style: italic; color: var(--card-dim); font-size: 12px; }
+    table.sp .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .minibar { height: 5px; background: var(--accent); border-radius: 3px; margin: 4px 0 0 auto; }
+    .pill { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 10px; background: #e2ecd9; color: #33472a; white-space: nowrap; }
+    .pill.none { background: #eeebe2; color: #9a9a8f; }
+
+    /* Species detail */
+    .back { border: 0; background: transparent; color: #7a3d0a; font: inherit; font-size: 13px; cursor: pointer; padding: 0; margin-bottom: 8px; }
+    .back:hover { text-decoration: underline; }
+    .det-h { font-size: 20px; font-weight: 700; margin: 0; }
+    .det-sci { font-style: italic; color: var(--card-dim); margin: 0 0 12px; }
+    .pl-toggle { display: flex; gap: 6px; margin: 4px 0 10px; }
+    .pl-toggle button { border: 1px solid var(--card-line); background: #fff; border-radius: 16px; padding: 5px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+    .pl-toggle button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    .list-select { width: 100%; margin-bottom: 8px; }
+    ul.plants { list-style: none; padding: 0; margin: 0; }
+    ul.plants li { padding: 7px 0; border-bottom: 1px solid #eeebe2; display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+    ul.plants li i { color: var(--card-dim); }
+    ul.plants .bloom { color: var(--card-dim); white-space: nowrap; }
+    .cite { font-size: 11px; color: var(--card-dim); margin-top: 10px; line-height: 1.5; }
+    .cite a { color: #7a3d0a; }
   </style>
 </head>
 
 <body>
 
   <div id="layout">
-    <div id="sidebar">      <div id="main">
-        <p class="hint">Click the map to find butterflies near a spot.</p>
+    <aside id="sidebar">
+      <div class="app-head">
+        <button id="hideSide" title="Hide panel" aria-label="Hide panel">×</button>
+        <div class="app-title">BIMBY</div>
+        <div class="app-sub">Butterflies in My Backyard · ecoregion atlas</div>
       </div>
-      <div id="settings">
-        <div class="settings-head" id="settingsHead">
-          <span>Options</span><span class="chev">▾</span>
+      <div id="side">
+        <div class="label">Colour ecoregions by</div>
+        <div class="seg" id="colourBy">
+          <button data-v="species" class="on">Species</button>
+          <button data-v="obs">Sightings</button>
         </div>
-        <div class="settings-body" id="settingsBody">
-          <label>Butterfly Occurrence Sources</label>
-          <div class="chips" id="occChips"></div>
-          <label>Associated Plant Sources</label>
-          <div class="chips" id="plantChips"></div>
-          <label>Point Radius Distance</label>
-          <div class="radius-row">
-            <input type="range" id="radiusSlider" min="1" max="50" value="15" />
-            <span class="radius-val" id="radiusVal">15 km</span>
-          </div>
-          <label>Time Period</label>
-          <div class="radius-row">
-            <div class="range2">
-              <div class="track"></div>
-              <div class="fill" id="timeFill"></div>
-              <input type="range" id="timeStart" min="0" max="0" value="0" />
-              <input type="range" id="timeEnd" min="0" max="0" value="0" />
-            </div>
-            <span class="time-val" id="timeVal">–</span>
-          </div>
-        </div>
+
+        <div class="label">Map one species</div>
+        <select id="spSelect"><option value="">All species</option></select>
+
+        <div class="label">Year</div>
+        <select id="yearSel"><option value="">All years</option></select>
+
+        <div class="label" id="legendLabel">Legend</div>
+        <div class="legend" id="legend"></div>
+
+        <div class="label">All of Canada</div>
+        <div class="totals" id="totals">Loading…</div>
+
+        <p class="side-hint">Click an ecoregion on the map to see its butterflies, sightings by year and flight season.</p>
       </div>
-    </div>
-    <div id="map"></div>
+    </aside>
+
+    <main id="mapwrap">
+      <div id="map"></div>
+      <button id="showSide" title="Show panel">☰ Map options</button>
+
+      <section id="popup" aria-label="Ecoregion details">
+        <div class="pop-head">
+          <button class="close" id="closePop" title="Close">×</button>
+          <div class="eyebrow" id="pEyebrow"></div>
+          <h2 id="pName"></h2>
+          <div class="stats" id="pStats"></div>
+        </div>
+        <nav class="tabs" id="tabs">
+          <button data-t="species">Species list</button>
+          <button data-t="overview">Overview</button>
+          <button data-t="season">Flight season</button>
+          <button data-t="compare">Compare regions</button>
+        </nav>
+        <div class="pop-body" id="popBody"></div>
+        <div class="pop-foot">
+          <span id="footInfo">Data: iNaturalist BIMBY project</span>
+          <span><button id="dlCsv">Download CSV</button><button id="copyLink">Copy link</button></span>
+        </div>
+      </section>
+    </main>
   </div>
+  <div id="tip"></div>
 
   <script>
+    // ---------- Constants ----------
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const NONE_FILL = '#ffffff';
+    // Sequential scales (one hue, light -> dark). Species bins match Option A.
+    const BINS = {
+      species: [[1, '#fbe3bd', '1–5'], [6, '#f4bf74', '6–15'], [16, '#e79a3c', '16–30'], [31, '#b8691c', '31–60'], [61, '#7a3d0a', '61+']],
+      obs:     [[1, '#fbe3bd', '1–25'], [26, '#f4bf74', '26–100'], [101, '#e79a3c', '101–500'], [501, '#b8691c', '501–2,000'], [2001, '#7a3d0a', '2,000+']],
+      oneSp:   [[1, '#fbe3bd', '1–2'], [3, '#f4bf74', '3–10'], [11, '#e79a3c', '11–40'], [41, '#b8691c', '41–150'], [151, '#7a3d0a', '151+']],
+    };
+    const INAT_PROJECT = 'https://www.inaturalist.org/projects/2026-butterflies-in-my-backyard-bimby-project';
+
     // ---------- State ----------
-    let radiusM = 15000;
-    let observations = [], plantLists = [], plantIndex = {};
-    let selectedPoint = null, currentSpecies = [];
-    let viewMode = 'list';
-    let activeButterfly = null, activeCategory = 'host';   // default category
-    let enabledPlantSources = new Set();
-    const OCC_SOURCES = [{ id: 'inat-bimby', label: 'iNaturalist (BIMBY)' }];
-    let enabledOccSources = new Set(OCC_SOURCES.map(s => s.id));
-    // Time period (stored as whole days since the earliest observation)
-    const DAY_MS = 86400000;
-    let baseDateMs = 0, startDay = 0, endDay = 0;
+    let observations = [], plantIndex = {}, regions = [];
+    let stats = new Map();            // regionId -> region stats (for the current year filter)
+    let allYears = [];                // years present in the data
+    const state = {
+      colourBy: 'species', species: '', year: '',
+      region: null, tab: 'species',
+      spSort: 'count', spFilter: '', detail: null, plantCat: 'host', listId: null,
+    };
+
+    const fmt = n => n.toLocaleString('en-CA');
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmtDate = (d, withYear) => {
+      const [y, m, dd] = d.split('-');
+      return MONTHS[+m - 1] + ' ' + (+dd) + (withYear ? ', ' + y : '');
+    };
+    const multiYear = () => !state.year && allYears.length > 1;
 
     // ---------- Map ----------
-    const map = L.map('map').setView([62.0, -96.0], 4);
+    const map = L.map('map', { zoomSnap: 0.25 }).setView([58.0, -96.0], 4);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        + ' | Ecoregions: <a href="https://sis.agr.gc.ca/cansis/nsdb/ecostrat/" target="_blank" rel="noopener">AAFC</a>'
     }).addTo(map);
-    const pinIcon = L.icon({
-      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-      iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
-    });
-    let clickedMarker = null, radiusCircle = null;
+    let regionLayer = null;
+    const layerById = new Map();
 
     // ---------- Load data ----------
     Promise.all([
       fetch('data/observations.json').then(r => r.json()),
-      fetch('data/plant-lists.json').then(r => r.json())
-    ]).then(([obs, lists]) => {
-      observations = obs; plantLists = lists;
-      initTimeSlider();
+      fetch('data/plant-lists.json').then(r => r.json()),
+      fetch('data/ecoregions.geojson').then(r => r.json()),
+      fetch('data/observation-ecoregions.json').then(r => r.json()),
+    ]).then(([obs, lists, geo, obsRegion]) => {
+      observations = obs; regions = geo.features;
+      for (const o of observations) {
+        o._region = obsRegion[o.id] ?? null;
+        o._year = (o.observedOn || '').slice(0, 4);
+      }
       for (const l of lists) (plantIndex[l.butterfly.scientificName] ??= []).push(l);
-      enabledPlantSources = new Set(lists.map(l => l.id));
-      buildChips();
+      allYears = [...new Set(observations.map(o => o._year).filter(Boolean))].sort();
+      buildControls();
+      computeStats();
+      drawMap();
+      renderSidebar();
+      restoreFromHash();
     }).catch(err => {
-      document.getElementById('main').innerHTML = '<p class="hint">Could not load data files.</p>';
+      document.getElementById('totals').textContent = 'Could not load data files.';
       console.error(err);
     });
 
-    // ---------- Map click ----------
-    map.on('click', (e) => { selectedPoint = e.latlng; drawPin(); runQuery(); });
-
-    function drawPin() {
-      if (!selectedPoint) return;
-      if (clickedMarker) clickedMarker.remove();
-      if (radiusCircle) radiusCircle.remove();
-      clickedMarker = L.marker(selectedPoint, { icon: pinIcon }).addTo(map);
-      radiusCircle = L.circle(selectedPoint, { radius: radiusM, color: '#e79a3c', fillColor: '#e79a3c', fillOpacity: 0.12, weight: 2 }).addTo(map);
+    // ---------- Stats ----------
+    function emptyStats() {
+      return { obs: 0, species: new Map(), dek: new Array(36).fill(0), days: [], first: null, last: null };
     }
-
-    function runQuery() {
-      if (!selectedPoint) return;
-      const nearby = observations.filter(o =>
-        o._day >= startDay && o._day <= endDay &&
-        map.distance(selectedPoint, L.latLng(o.lat, o.lng)) <= radiusM);
-      const set = new Map();
-      for (const o of nearby) if (!set.has(o.scientificName)) set.set(o.scientificName, o);
-      currentSpecies = [...set.values()].sort((a, b) =>
-        (a.commonName || a.scientificName).localeCompare(b.commonName || b.scientificName));
-      viewMode = 'list'; activeButterfly = null;
-      renderMain();
+    function dayOfYear(d) {
+      const t = Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
+      return Math.round((t - Date.UTC(+d.slice(0, 4), 0, 1)) / 86400000);
     }
-
-    function enabledListsFor(name) {
-      return (plantIndex[name] || []).filter(l => enabledPlantSources.has(l.id));
-    }
-
-    // ---------- Render ----------
-    function renderMain() { viewMode === 'plants' ? renderPlantView() : renderListView(); }
-
-    // View A: butterfly list (Host/Nectar always shown)
-    function renderListView() {
-      const box = document.getElementById('main');
-      if (!selectedPoint) { box.innerHTML = '<p class="hint">Click the map to find butterflies near a spot.</p>'; return; }
-      if (currentSpecies.length === 0) { box.innerHTML = '<p class="hint">No butterflies found in range. Try a bigger radius, a wider time period, or another spot.</p>'; return; }
-
-      box.innerHTML = `<div class="col-head"><span class="h-bf">Butterflies</span><span class="h-pl">Plants</span></div>` +
-        currentSpecies.map(s => `
-          <div class="bf-row" data-name="${s.scientificName}">
-            <span class="bf-name">
-              <span class="bf-common">${s.commonName || s.scientificName}</span>
-              <span class="bf-sci">${s.scientificName}</span>
-            </span>
-            <span class="plants-cell">
-              <button class="toggle-btn" data-cat="host">Host</button>
-              <button class="toggle-btn" data-cat="nectar">Nectar</button>
-            </span>
-          </div>`).join('');
-
-      box.querySelectorAll('.toggle-btn').forEach(btn =>
-        btn.addEventListener('click', () => {
-          activeButterfly = btn.closest('.bf-row').dataset.name;
-          activeCategory = btn.dataset.cat; viewMode = 'plants'; renderMain();
-        }));
-      box.querySelectorAll('.bf-name').forEach(el =>
-        el.addEventListener('click', () => {
-          activeButterfly = el.closest('.bf-row').dataset.name;
-          viewMode = 'plants'; renderMain();     // opens with current activeCategory
-        }));
-    }
-
-    // View B: plant list with a clear segmented Host/Nectar control
-    function renderPlantView() {
-      const box = document.getElementById('main');
-      const sp = currentSpecies.find(s => s.scientificName === activeButterfly) || {};
-      const lists = enabledListsFor(activeButterfly);
-
-      let html = `<button class="back">&larr; Back to butterflies</button>
-        <div class="plant-head">
-          <span class="bf-name">
-            <span class="bf-common">${sp.commonName || activeButterfly}</span>
-            <span class="bf-sci">${activeButterfly}</span>
-          </span>
-          <span class="seg">
-            <button class="${activeCategory === 'host' ? 'on' : ''}" data-cat="host">Host</button>
-            <button class="${activeCategory === 'nectar' ? 'on' : ''}" data-cat="nectar">Nectar</button>
-          </span>
-        </div>`;
-
-      if (lists.length === 0) {
-        html += '<p class="hint">No plant data for this species from the selected sources.</p>';
-      } else {
-        const seen = new Map();
-        for (const l of lists)
-          for (const p of l.plants)
-            if ((activeCategory === 'host') === !!p.isHost && !seen.has(p.scientificName)) seen.set(p.scientificName, p);
-        const plants = [...seen.values()];
-        html += plants.length
-          ? `<ul>${plants.map(p => `<li>${p.commonName} <span class="bf-sci" style="display:inline">(${p.scientificName})</span>${p.bloom ? ` <span class="bloom">&middot; ${p.bloom}</span>` : ''}</li>`).join('')}</ul>`
-          : `<p class="hint">None listed as ${activeCategory} plants here.</p>`;
-        const srcs = [...new Map(lists.map(l => [l.source.url, l.source])).values()];
-        html += `<div class="source">Sources: ${srcs.map(s => `<a href="${s.url}" target="_blank" rel="noopener">${shortSource(s.org)} (${s.year})</a>`).join('; ')}</div>`;
+    // Per-region stats for the current year filter
+    function computeStats() {
+      stats = new Map();
+      for (const o of observations) {
+        if (o._region == null || (state.year && o._year !== state.year)) continue;
+        let r = stats.get(o._region);
+        if (!r) stats.set(o._region, r = emptyStats());
+        const d = o.observedOn, m = +d.slice(5, 7), dd = +d.slice(8, 10);
+        r.obs++;
+        r.dek[(m - 1) * 3 + Math.min(2, Math.floor((dd - 1) / 10))]++;
+        r.days.push(dayOfYear(d));
+        if (!r.first || d < r.first) r.first = d;
+        if (!r.last || d > r.last) r.last = d;
+        let s = r.species.get(o.scientificName);
+        if (!s) r.species.set(o.scientificName, s = {
+          sci: o.scientificName, common: o.commonName, count: 0, first: d, last: d, months: new Array(12).fill(0)
+        });
+        s.count++; s.months[m - 1]++;
+        if (d < s.first) s.first = d;
+        if (d > s.last) s.last = d;
       }
-      box.innerHTML = html;
+    }
+    // Sightings & species per year for one region (always all years — that's the point of the chart)
+    function yearlyFor(regionId) {
+      const byYear = new Map(allYears.map(y => [y, { obs: 0, sp: new Set() }]));
+      for (const o of observations) {
+        if (o._region !== regionId) continue;
+        const y = byYear.get(o._year);
+        if (y) { y.obs++; y.sp.add(o.scientificName); }
+      }
+      return allYears.map(y => ({ year: y, obs: byYear.get(y).obs, species: byYear.get(y).sp.size }));
+    }
+    const regionProps = id => regions.find(f => f.properties.id === id)?.properties;
+    const rStats = id => stats.get(id) || emptyStats();
 
-      box.querySelector('.back').addEventListener('click', () => { viewMode = 'list'; renderMain(); });
-      box.querySelectorAll('.seg button').forEach(btn =>
-        btn.addEventListener('click', () => { activeCategory = btn.dataset.cat; renderPlantView(); }));
+    function valueFor(id) {
+      const r = stats.get(id);
+      if (!r) return 0;
+      if (state.species) return r.species.get(state.species)?.count || 0;
+      return state.colourBy === 'obs' ? r.obs : r.species.size;
+    }
+    const measureLabel = () => state.species ? 'sightings' : (state.colourBy === 'obs' ? 'sightings' : 'species');
+    const currentBins = () => BINS[state.species ? 'oneSp' : state.colourBy];
+    function colourFor(v) {
+      let c = null;
+      for (const [min, col] of currentBins()) if (v >= min) c = col;
+      return c;
     }
 
+    // ---------- Map layers ----------
+    function styleFor(f) {
+      const id = f.properties.id, c = colourFor(valueFor(id)), sel = id === state.region;
+      return {
+        color: sel ? '#22301b' : '#5b6b52', weight: sel ? 3 : 0.6, opacity: sel ? 1 : 0.55,
+        fillColor: c || NONE_FILL,
+        fillOpacity: !c ? 0.05 : (state.region == null || sel ? 0.75 : 0.3),
+      };
+    }
+
+    function drawMap() {
+      regionLayer = L.geoJSON({ type: 'FeatureCollection', features: regions }, {
+        style: styleFor,
+        onEachFeature: (f, layer) => {
+          layerById.set(f.properties.id, layer);
+          layer.bindTooltip(() => {
+            const v = valueFor(f.properties.id);
+            return `<b>${esc(f.properties.name)}</b><br><span class="t-sub">${esc(f.properties.zoneName)} ecozone · ` +
+              `${v ? fmt(v) + ' ' + measureLabel() + (state.species ? ' of ' + esc(commonName(state.species)) : '') : 'no sightings' + (state.species ? ' of ' + esc(commonName(state.species)) : '')}</span>`;
+          }, { sticky: true, className: 'eco-tip' });
+          layer.on('mouseover', () => { if (f.properties.id !== state.region) layer.setStyle({ weight: 2, opacity: 1 }); });
+          layer.on('mouseout', () => regionLayer.resetStyle(layer));
+          layer.on('click', () => openRegion(f.properties.id, false));
+        }
+      }).addTo(map);
+
+    }
+
+    function restyle() {
+      regionLayer.setStyle(styleFor);
+      layerById.get(state.region)?.bringToFront();
+    }
+
+    // ---------- Sidebar ----------
+    function buildControls() {
+      // Species dropdown (A–Z by common name, with total sightings)
+      const totals = new Map();
+      for (const o of observations) {
+        const t = totals.get(o.scientificName) || { sci: o.scientificName, common: o.commonName, n: 0 };
+        t.n++; totals.set(o.scientificName, t);
+      }
+      const spSel = document.getElementById('spSelect');
+      [...totals.values()].sort((a, b) => (a.common || a.sci).localeCompare(b.common || b.sci)).forEach(s => {
+        const o = document.createElement('option');
+        o.value = s.sci; o.textContent = `${s.common || s.sci} (${fmt(s.n)})`;
+        spSel.appendChild(o);
+      });
+      spSel.addEventListener('change', () => {
+        state.species = spSel.value; restyle(); renderSidebar();
+        if (state.region != null) renderPopup();
+      });
+
+      // Year dropdown fills in automatically as new years appear in the data
+      const ySel = document.getElementById('yearSel');
+      allYears.slice().reverse().forEach(y => {
+        const o = document.createElement('option'); o.value = y; o.textContent = y; ySel.appendChild(o);
+      });
+      ySel.addEventListener('change', () => {
+        state.year = ySel.value; state.detail = null;
+        computeStats(); restyle(); renderSidebar();
+        if (state.region != null) renderPopup();
+      });
+
+      document.querySelectorAll('#colourBy button').forEach(b => b.addEventListener('click', () => {
+        document.querySelectorAll('#colourBy button').forEach(x => x.classList.toggle('on', x === b));
+        state.colourBy = b.dataset.v;
+        state.species = ''; spSel.value = '';
+        restyle(); renderSidebar();
+        if (state.region != null && state.tab === 'compare') renderPopup();
+      }));
+    }
+
+    function renderSidebar() {
+      document.getElementById('legendLabel').textContent = 'Legend — ' +
+        (state.species ? 'sightings of ' + commonName(state.species) : (state.colourBy === 'obs' ? 'sightings' : 'species seen'));
+      document.getElementById('legend').innerHTML =
+        currentBins().map(([, c, label]) => `<div><i style="background:${c}"></i>${label}</div>`).join('') +
+        `<div><i style="background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.35)"></i>None recorded</div>`;
+
+      const inYear = observations.filter(o => !state.year || o._year === state.year);
+      const dates = inYear.map(o => o.observedOn).filter(Boolean).sort();
+      document.getElementById('totals').innerHTML = inYear.length
+        ? `<b>${fmt(inYear.length)}</b> sightings · <b>${new Set(inYear.map(o => o.scientificName)).size}</b> species<br>` +
+          `${fmtDate(dates[0], true)} – ${fmtDate(dates[dates.length - 1], true)}`
+        : 'No sightings for this year.';
+    }
+    function commonName(sci) {
+      return observations.find(o => o.scientificName === sci)?.commonName || sci;
+    }
+
+    // ---------- Popup ----------
+    function openRegion(id, zoom) {
+      state.region = id; state.detail = null; state.spFilter = '';
+      document.getElementById('popup').classList.add('open');
+      document.getElementById('mapwrap').classList.add('popopen');
+      map.invalidateSize();
+      restyle();
+      if (zoom) map.fitBounds(layerById.get(id).getBounds(), { padding: [30, 30], maxZoom: 7 });
+      renderPopup();
+    }
+    function closeRegion() {
+      state.region = null; state.detail = null;
+      document.getElementById('popup').classList.remove('open');
+      document.getElementById('mapwrap').classList.remove('popopen');
+      map.invalidateSize();
+      restyle(); updateHash();
+    }
+    document.getElementById('closePop').addEventListener('click', closeRegion);
+
+    // Hide / show the left panel (map grows to fill the space)
+    function setSidebar(show) {
+      document.getElementById('layout').classList.toggle('side-hidden', !show);
+      map.invalidateSize();
+    }
+    document.getElementById('hideSide').addEventListener('click', () => setSidebar(false));
+    document.getElementById('showSide').addEventListener('click', () => setSidebar(true));
+    document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => {
+      state.tab = b.dataset.t; state.detail = null; renderPopup();
+    }));
+
+    function renderPopup() {
+      const p = regionProps(state.region), r = rStats(state.region);
+      document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === state.tab));
+      document.getElementById('pEyebrow').textContent = `Ecoregion · ${p.zoneName} ecozone`;
+      document.getElementById('pName').textContent = p.name;
+      const range = r.obs ? (r.first === r.last ? fmtDate(r.first) : `${fmtDate(r.first)} – ${fmtDate(r.last)}`) : '—';
+      document.getElementById('pStats').innerHTML = [
+        [fmt(r.obs), 'sightings'], [fmt(r.species.size), 'species'],
+        [range, (state.year || (allYears.length === 1 ? allYears[0] : 'all years')) + ' date range', true],
+      ].map(([n, k, small]) => `<div class="stat"><div class="n ${small ? 'small' : ''}">${n}</div><div class="k">${k}</div></div>`).join('');
+      document.getElementById('footInfo').textContent =
+        `Data: iNaturalist BIMBY project${state.year ? ', ' + state.year : ''}`;
+      document.getElementById('dlCsv').style.display = r.obs ? '' : 'none';
+
+      const body = document.getElementById('popBody');
+      updateHash();
+      if (!r.obs) {
+        body.innerHTML = `<div class="empty">No butterfly sightings in this ecoregion${state.year ? ' in ' + state.year : ''} yet.<br>
+          Seen one here? Add it to the <a href="${INAT_PROJECT}" target="_blank" rel="noopener">BIMBY project on iNaturalist</a>.</div>`;
+        return;
+      }
+      if (state.detail) return renderDetail(body);
+      ({ species: renderSpecies, overview: renderOverview, season: renderSeason, compare: renderCompare })[state.tab](body);
+    }
+
+    // ---------- Bar chart helper (vertical bars, inline SVG) ----------
+    function barChart(data, opts = {}) {
+      // data: [{ label, value, tip }]
+      const W = 540, H = opts.h || 150, padL = 40, padB = 22, padT = 18;
+      const iw = W - padL - 6, ih = H - padB - padT;
+      const top = niceMax(Math.max(1, ...data.map(d => d.value)));
+      const step = iw / data.length, bw = Math.min(opts.maxBar || 60, step * 0.72);
+      let g = '';
+      [0, 0.5, 1].forEach(f => {
+        const y = padT + ih - ih * f;
+        g += `<line x1="${padL}" x2="${W - 6}" y1="${y}" y2="${y}" stroke="#e4e1d6"/>` +
+             `<text x="${padL - 6}" y="${y + 4}" text-anchor="end">${fmt(Math.round(top * f))}</text>`;
+      });
+      data.forEach((d, i) => {
+        const h = ih * d.value / top, x = padL + step * i + (step - bw) / 2, y = padT + ih - h;
+        const r = Math.min(4, bw / 2, h);
+        g += `<rect class="hit" x="${padL + step * i}" y="${padT}" width="${step}" height="${ih}" fill="transparent" data-tip="${esc(d.tip || d.label + ': ' + fmt(d.value))}"/>`;
+        g += h > 0
+          ? `<path class="bar" pointer-events="none" d="M${x},${padT + ih} V${y + r} Q${x},${y} ${x + r},${y} H${x + bw - r} Q${x + bw},${y} ${x + bw},${y + r} V${padT + ih} Z"/>`
+          : '<g></g>';
+        if (d.label) g += `<text x="${padL + step * i + step / 2}" y="${H - 6}" text-anchor="middle">${esc(d.label)}</text>`;
+        if (opts.direct && d.value) g += `<text class="val" x="${x + bw / 2}" y="${y - 5}" text-anchor="middle">${fmt(d.value)}</text>`;
+      });
+      return `<svg viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+    }
+    function niceMax(v) {
+      const p = Math.pow(10, Math.floor(Math.log10(v)));
+      for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
+      return 10 * p;
+    }
+    document.addEventListener('mousemove', e => {
+      const t = e.target.closest && e.target.closest('[data-tip]'), tip = document.getElementById('tip');
+      if (t) {
+        tip.style.display = 'block'; tip.textContent = t.dataset.tip;
+        tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY + 12) + 'px';
+      } else tip.style.display = 'none';
+    });
+
+    // ---------- Tab: species list ----------
+    function speciesRows() {
+      return [...rStats(state.region).species.values()];
+    }
+    function sortedSpecies() {
+      let rows = speciesRows();
+      const q = state.spFilter.trim().toLowerCase();
+      if (q) rows = rows.filter(s => (s.sci + ' ' + (s.common || '')).toLowerCase().includes(q));
+      const name = s => (s.common || s.sci);
+      const sorts = {
+        count: (a, b) => b.count - a.count || name(a).localeCompare(name(b)),
+        rare:  (a, b) => a.count - b.count || name(a).localeCompare(name(b)),
+        az:    (a, b) => name(a).localeCompare(name(b)),
+        early: (a, b) => dayOfYear(a.first) - dayOfYear(b.first) || name(a).localeCompare(name(b)),
+      };
+      return rows.sort(sorts[state.spSort]);
+    }
+    function renderSpecies(body) {
+      const all = speciesRows(), rows = sortedSpecies();
+      const max = Math.max(...all.map(s => s.count));
+      const my = multiYear();
+      body.innerHTML = `
+        <div class="sp-tools">
+          <input type="search" id="spQ" placeholder="Search ${all.length} species…" value="${esc(state.spFilter)}">
+          <select id="spSort">
+            <option value="count">Most seen first</option><option value="rare">Rarest first</option>
+            <option value="az">A–Z</option><option value="early">Earliest in the year</option>
+          </select>
+        </div>
+        <table class="sp">
+          <thead><tr><th>Butterfly</th><th class="num">Sightings</th><th>First – last seen</th><th>Plants</th></tr></thead>
+          <tbody>${rows.map(s => `
+            <tr class="row ${s.sci === state.species ? 'hl' : ''}" data-sci="${esc(s.sci)}">
+              <td><div>${esc(s.common || s.sci)}</div><div class="sci">${esc(s.sci)}</div></td>
+              <td class="num">${fmt(s.count)}<div class="minibar" style="width:${Math.max(4, 100 * s.count / max)}%"></div></td>
+              <td>${fmtDate(s.first, my)}${s.first !== s.last ? ' – ' + fmtDate(s.last, my) : ''}</td>
+              <td>${plantIndex[s.sci] ? '<span class="pill">Host · Nectar</span>' : '<span class="pill none">not yet</span>'}</td>
+            </tr>`).join('') || `<tr><td colspan="4" style="color:var(--card-dim)">No species match “${esc(state.spFilter)}”.</td></tr>`}
+          </tbody>
+        </table>`;
+      const sel = body.querySelector('#spSort');
+      sel.value = state.spSort;
+      sel.addEventListener('change', () => { state.spSort = sel.value; renderPopup(); });
+      const inp = body.querySelector('#spQ');
+      inp.addEventListener('input', () => {
+        state.spFilter = inp.value;
+        const pos = inp.selectionStart;
+        renderPopup();
+        const n = document.getElementById('spQ'); n.focus(); n.setSelectionRange(pos, pos);
+      });
+      body.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => {
+        state.detail = tr.dataset.sci; state.listId = null; renderPopup();
+        document.getElementById('popBody').scrollTop = 0;
+      }));
+    }
+
+    // ---------- Species detail: when it flies + host & nectar plants ----------
+    function renderDetail(body) {
+      const p = regionProps(state.region);
+      const s = rStats(state.region).species.get(state.detail);
+      if (!s) { state.detail = null; return renderPopup(); }
+      const lists = plantIndex[s.sci] || [];
+      const list = lists.find(l => l.id === state.listId) || lists[0];
+      const plants = list ? list.plants.filter(pl => (state.plantCat === 'host') === !!pl.isHost) : [];
+      body.innerHTML = `
+        <button class="back" id="back">‹ Back to species list</button>
+        <p class="det-h">${esc(s.common || s.sci)}</p>
+        <p class="det-sci">${esc(s.sci)} · ${fmt(s.count)} sighting${s.count === 1 ? '' : 's'} in ${esc(p.name)}</p>
+        <div class="chart">
+          <p class="chart-title">When it flies here</p>
+          <p class="chart-sub">Sightings by month in ${esc(p.name)}${state.year ? ', ' + state.year : ''}</p>
+          ${barChart(MONTHS.map((m, i) => ({ label: m, value: s.months[i], tip: `${m}: ${fmt(s.months[i])} sighting${s.months[i] === 1 ? '' : 's'}` })), { h: 110, maxBar: 26 })}
+        </div>
+        <div class="pl-toggle">
+          <button data-c="host" class="${state.plantCat === 'host' ? 'on' : ''}">Host plants</button>
+          <button data-c="nectar" class="${state.plantCat === 'nectar' ? 'on' : ''}">Nectar plants</button>
+        </div>
+        ${!list ? `<div class="empty">No host or nectar plant list for this species yet.</div>` : `
+          ${lists.length > 1
+            ? `<select class="list-select" id="listSel">${lists.map(l => `<option value="${esc(l.id)}" ${l === list ? 'selected' : ''}>${esc(l.region)} — ${esc(shortSource(l.source.org))} (${l.source.year})</option>`).join('')}</select>`
+            : `<p class="chart-sub">Region: ${esc(list.region)}</p>`}
+          ${plants.length
+            ? `<ul class="plants">${plants.map(pl => `<li><span>${esc(pl.commonName)} <i>${esc(pl.scientificName)}</i></span>${pl.bloom ? `<span class="bloom">${esc(pl.bloom)}</span>` : ''}</li>`).join('')}</ul>`
+            : `<div class="empty">None listed as ${state.plantCat} plants in this list.</div>`}
+          <p class="cite">Source: ${esc((list.source.authors || []).join(', '))}${list.source.authors ? ' ' : ''}(${list.source.year}).
+            <a href="${esc(list.source.url)}" target="_blank" rel="noopener">${esc(list.source.title)}</a>. ${esc(list.source.org)}.</p>`}`;
+      body.querySelector('#back').addEventListener('click', () => { state.detail = null; renderPopup(); });
+      body.querySelectorAll('.pl-toggle button').forEach(b => b.addEventListener('click', () => { state.plantCat = b.dataset.c; renderPopup(); }));
+      body.querySelector('#listSel')?.addEventListener('change', e => { state.listId = e.target.value; renderPopup(); });
+    }
     function shortSource(org) { return /xerces/i.test(org) ? 'Xerces Society' : org; }
 
-    // ---------- Settings: chips (plant chips grouped by source org) ----------
-    function buildChips() {
-      const occ = document.getElementById('occChips');
-      occ.innerHTML = OCC_SOURCES.map(s =>
-        `<button class="chip ${enabledOccSources.has(s.id) ? 'on' : ''}" data-id="${s.id}">${s.label}</button>`).join('');
-      occ.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
-        toggle(enabledOccSources, c.dataset.id); c.classList.toggle('on');
-      }));
-
-      // Group plant lists by source org so there's one chip per source (e.g. "Xerces Society")
-      const byOrg = {};
-      for (const l of plantLists) (byOrg[l.source.org] ??= []).push(l.id);
-
-      const plant = document.getElementById('plantChips');
-      plant.innerHTML = Object.entries(byOrg).map(([org, ids]) => {
-        const on = ids.some(id => enabledPlantSources.has(id));
-        return `<button class="chip ${on ? 'on' : ''}" data-ids="${ids.join(',')}">${shortSource(org)}</button>`;
-      }).join('');
-      plant.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
-        const ids = c.dataset.ids.split(',');
-        const turnOn = !ids.some(id => enabledPlantSources.has(id));   // if any on -> turn all off, else on
-        ids.forEach(id => turnOn ? enabledPlantSources.add(id) : enabledPlantSources.delete(id));
-        c.classList.toggle('on', turnOn);
-        renderMain();
+    // ---------- Tab: overview ----------
+    function renderOverview(body) {
+      const p = regionProps(state.region), r = rStats(state.region);
+      const yearly = yearlyFor(state.region);
+      const top = [...r.species.values()].sort((a, b) => b.count - a.count).slice(0, 5);
+      body.innerHTML = `
+        <div class="chart">
+          <p class="chart-title">Sightings by year</p>
+          <p class="chart-sub">Butterfly observations logged in ${esc(p.name)}, all years</p>
+          ${barChart(yearly.map(y => ({ label: y.year, value: y.obs, tip: `${y.year}: ${fmt(y.obs)} sightings` })), { direct: true })}
+        </div>
+        <div class="chart">
+          <p class="chart-title">Species by year</p>
+          <p class="chart-sub">Different butterfly species seen, all years</p>
+          ${barChart(yearly.map(y => ({ label: y.year, value: y.species, tip: `${y.year}: ${fmt(y.species)} species` })), { direct: true })}
+        </div>
+        <div class="chart">
+          <p class="chart-title">Most-seen species here</p>
+          <p class="chart-sub">Top ${top.length} by sightings${state.year ? ' in ' + state.year : ''}</p>
+          ${top.map(s => `<div class="rank-row solid link" data-sci="${esc(s.sci)}"><span>${esc(s.common || s.sci)}</span>
+            <div class="track"><div class="fill" style="width:${100 * s.count / top[0].count}%"></div></div>
+            <span class="v">${fmt(s.count)}</span></div>`).join('')}
+        </div>`;
+      body.querySelectorAll('.rank-row.link').forEach(el => el.addEventListener('click', () => {
+        state.tab = 'species'; state.detail = el.dataset.sci; renderPopup();
       }));
     }
-    function toggle(set, id) { set.has(id) ? set.delete(id) : set.add(id); }
 
-    // ---------- Settings: collapse + radius ----------
-    document.getElementById('settingsHead').addEventListener('click', () => {
-      document.getElementById('settingsHead').classList.toggle('collapsed');
-      document.getElementById('settingsBody').classList.toggle('hidden');
+    // ---------- Tab: flight season ----------
+    function renderSeason(body) {
+      const p = regionProps(state.region), r = rStats(state.region);
+      const days = r.days.slice().sort((a, b) => a - b);
+      const q = f => days[Math.min(days.length - 1, Math.floor(f * (days.length - 1)))];
+      const doyLabel = doy => { const d = new Date(Date.UTC(2001, 0, 1) + doy * 86400000); return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate(); };
+      const labels = [];
+      MONTHS.forEach(m => ['early', 'mid', 'late'].forEach(x => labels.push(`${x} ${m}`)));
+      const first = r.dek.findIndex(v => v > 0), last = 35 - [...r.dek].reverse().findIndex(v => v > 0);
+      const lo = Math.max(0, first - 3), hi = Math.min(36, last + 4);
+      const data = r.dek.slice(lo, hi).map((v, k) => {
+        const i = lo + k;
+        return { label: i % 3 === 0 ? MONTHS[i / 3] : '', value: v, tip: `${labels[i]}: ${fmt(v)} sighting${v === 1 ? '' : 's'}` };
+      });
+      body.innerHTML = `
+        <p class="chart-title">Flight season in ${esc(p.name)}</p>
+        <p class="chart-sub">Sightings per 10-day period, all species${state.year ? ', ' + state.year : (allYears.length > 1 ? ', all years combined' : '')}</p>
+        <div class="fs-stats">
+          <div>Earliest<b>${doyLabel(days[0])}</b></div>
+          <div>10% seen by<b>${doyLabel(q(0.1))}</b></div>
+          <div>Median<b>${doyLabel(q(0.5))}</b></div>
+          <div>90% seen by<b>${doyLabel(q(0.9))}</b></div>
+          <div>Latest<b>${doyLabel(days[days.length - 1])}</b></div>
+        </div>
+        <div class="chart">${barChart(data, { h: 180, maxBar: 14 })}</div>
+        <p class="chart-sub">Tip: open a species from the Species list to see its own flight season here.</p>`;
+    }
+
+    // ---------- Tab: compare regions ----------
+    function renderCompare(body) {
+      const p = regionProps(state.region);
+      const key = state.colourBy;
+      const val = id => { const r = stats.get(id); return !r ? 0 : (key === 'obs' ? r.obs : r.species.size); };
+      const rows = regions.map(f => f.properties).filter(x => x.zoneId === p.zoneId && val(x.id) > 0)
+        .sort((a, b) => val(b.id) - val(a.id));
+      const max = Math.max(1, ...rows.map(x => val(x.id)));
+      const noData = regions.filter(f => f.properties.zoneId === p.zoneId).length - rows.length;
+      body.innerHTML = `
+        <p class="chart-title">${key === 'obs' ? 'Sightings' : 'Species'} in each ecoregion of the ${esc(p.zoneName)} ecozone</p>
+        <p class="chart-sub">Follows the “Colour ecoregions by” setting${state.year ? ' · ' + state.year : ''} · click a name to open it</p>
+        ${rows.map(x => `<div class="rank-row link ${x.id === state.region ? 'me' : ''}" data-id="${x.id}"><span>${esc(x.name)}</span>
+          <div class="track"><div class="fill" style="width:${100 * val(x.id) / max}%"></div></div>
+          <span class="v">${fmt(val(x.id))}</span></div>`).join('')}
+        ${noData ? `<p class="chart-sub" style="margin-top:10px">${noData} other ecoregion${noData === 1 ? '' : 's'} in this ecozone ha${noData === 1 ? 's' : 've'} no sightings yet.</p>` : ''}`;
+      body.querySelectorAll('.rank-row.link').forEach(el => el.addEventListener('click', () => {
+        const id = Number(el.dataset.id);
+        if (id !== state.region) { const t = state.tab; openRegion(id, true); state.tab = t; renderPopup(); }
+      }));
+    }
+
+    // ---------- Footer: CSV + shareable link ----------
+    document.getElementById('dlCsv').addEventListener('click', () => {
+      const p = regionProps(state.region);
+      const rows = [['common_name', 'scientific_name', 'sightings', 'first_seen', 'last_seen', 'has_plant_list']]
+        .concat(sortedSpecies().map(s => [s.common || '', s.sci, s.count, s.first, s.last, plantIndex[s.sci] ? 'yes' : 'no']));
+      const csv = rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(',')).join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      a.download = `bimby-${p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}${state.year ? '-' + state.year : ''}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
-    const slider = document.getElementById('radiusSlider');
-    const radiusVal = document.getElementById('radiusVal');
-    slider.addEventListener('input', () => {
-      radiusM = Number(slider.value) * 1000;
-      radiusVal.textContent = `${slider.value} km`;
-      if (radiusCircle) radiusCircle.setRadius(radiusM);
+    document.getElementById('copyLink').addEventListener('click', e => {
+      const btn = e.currentTarget;
+      const done = ok => { btn.textContent = ok ? 'Link copied' : 'Copy failed'; setTimeout(() => btn.textContent = 'Copy link', 1500); };
+      (navigator.clipboard ? navigator.clipboard.writeText(location.href) : Promise.reject()).then(() => done(true), () => done(false));
     });
-    slider.addEventListener('change', runQuery);
 
-    // ---------- Settings: time period ----------
-    const timeStart = document.getElementById('timeStart');
-    const timeEnd = document.getElementById('timeEnd');
-
-    function initTimeSlider() {
-      const times = observations.map(o => Date.parse(o.observedOn)).filter(t => !isNaN(t));
-      baseDateMs = Math.min(...times);
-      const maxDay = Math.round((Math.max(...times) - baseDateMs) / DAY_MS);
-      for (const o of observations) {
-        const t = Date.parse(o.observedOn);
-        o._day = isNaN(t) ? -1 : Math.round((t - baseDateMs) / DAY_MS);
+    // URL hash keeps the open region/tab so links can be shared: #region=123&tab=season&year=2026
+    function updateHash() {
+      const h = new URLSearchParams();
+      if (state.region != null) { h.set('region', state.region); if (state.tab !== 'species') h.set('tab', state.tab); }
+      if (state.year) h.set('year', state.year);
+      const s = h.toString();
+      history.replaceState(null, '', location.pathname + location.search + (s ? '#' + s : ''));
+    }
+    function restoreFromHash() {
+      const h = new URLSearchParams(location.hash.slice(1));
+      const y = h.get('year');
+      if (y && allYears.includes(y)) {
+        state.year = y; document.getElementById('yearSel').value = y;
+        computeStats(); restyle(); renderSidebar();
       }
-      for (const el of [timeStart, timeEnd]) el.max = maxDay;
-      timeStart.value = startDay = 0;
-      timeEnd.value = endDay = maxDay;
-      updateTimeUI();
+      const t = h.get('tab');
+      if (['species', 'overview', 'season', 'compare'].includes(t)) state.tab = t;
+      const id = Number(h.get('region'));
+      if (h.has('region') && regionProps(id)) openRegion(id, true);
     }
-
-    function dayLabel(day, withYear) {
-      return new Date(baseDateMs + day * DAY_MS).toLocaleDateString('en-CA',
-        { month: 'short', day: 'numeric', timeZone: 'UTC', ...(withYear ? { year: 'numeric' } : {}) });
-    }
-
-    function updateTimeUI() {
-      const max = Number(timeEnd.max) || 1;
-      const multiYear = new Date(baseDateMs).getUTCFullYear() !== new Date(baseDateMs + max * DAY_MS).getUTCFullYear();
-      document.getElementById('timeVal').textContent =
-        startDay === endDay ? dayLabel(startDay, multiYear) : `${dayLabel(startDay, multiYear)} – ${dayLabel(endDay, multiYear)}`;
-      const fill = document.getElementById('timeFill');
-      fill.style.left = `calc(8px + (100% - 16px) * ${startDay / max})`;
-      fill.style.width = `calc((100% - 16px) * ${(endDay - startDay) / max})`;
-      // If both handles sit at the far right, keep the start handle grabbable
-      timeStart.style.zIndex = startDay > max - 1 ? 3 : 1;
-      timeEnd.style.zIndex = 2;
-    }
-
-    timeStart.addEventListener('input', () => {
-      startDay = Math.min(Number(timeStart.value), endDay);
-      timeStart.value = startDay; updateTimeUI();
-    });
-    timeEnd.addEventListener('input', () => {
-      endDay = Math.max(Number(timeEnd.value), startDay);
-      timeEnd.value = endDay; updateTimeUI();
-    });
-    timeStart.addEventListener('change', runQuery);
-    timeEnd.addEventListener('change', runQuery);
+    // A pasted/edited link on an already-open page
+    window.addEventListener('hashchange', () => { if (regions.length) restoreFromHash(); });
   </script>
 
   <script src="dev-switcher.js"></script>

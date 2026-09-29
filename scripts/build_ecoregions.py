@@ -1,5 +1,5 @@
 """
-Build the ecoregion data used by option-a.html.
+Build the ecoregion data used by option-a.html and option-b.html.
 
 Inputs (downloaded manually from AAFC's National Ecological Framework for Canada,
 https://sis.agr.gc.ca/cansis/nsdb/ecostrat/gis_data.html):
@@ -10,6 +10,8 @@ https://sis.agr.gc.ca/cansis/nsdb/ecostrat/gis_data.html):
 Outputs:
     data/ecoregions.geojson             simplified ecoregion outlines for the map
     data/observation-ecoregions.json    {observation id: ecoregion id}
+    data/ecozones.geojson               ecozone outlines (merged from the simplified
+                                        ecoregions); not used by any page right now
 
 Requires: pip install pyshp shapely   (shapely >= 2.1 for coverage_simplify)
 
@@ -31,6 +33,7 @@ RAW = "data/raw"
 OBS = "data/observations.json"
 OUT_GEO = "data/ecoregions.geojson"
 OUT_OBS = "data/observation-ecoregions.json"
+OUT_ZONES = "data/ecozones.geojson"
 
 SIMPLIFY_DEG = 0.02      # coverage-simplify tolerance (~2 km); shared borders stay shared
 DECIMALS = 3             # coordinate rounding in the output (~100 m)
@@ -87,18 +90,30 @@ def main():
 
     # --- Simplify outlines for the web, keeping neighbouring borders identical ---
     simple = shapely.coverage_simplify(full, SIMPLIFY_DEG)
-    features = []
+    features, zone_parts = [], {}
     for rid, geom in zip(ids, simple):
         geom = shapely.set_precision(geom, 10 ** -DECIMALS)
         if geom.is_empty:
             geom = full[ids.index(rid)].simplify(SIMPLIFY_DEG)   # tiny islands can vanish
         props = dict(info[rid], zoneName=zone_names.get(info[rid]["zoneId"], ""))
         features.append({"type": "Feature", "properties": props, "geometry": mapping(geom)})
+        zone_parts.setdefault(info[rid]["zoneId"], []).append(geom)
+
+    # --- Ecozone outlines: merge each zone's simplified ecoregions ---
+    zone_features = []
+    for zid in sorted(zone_parts):
+        geom = shapely.set_precision(unary_union(zone_parts[zid]), 10 ** -DECIMALS)
+        zone_features.append({"type": "Feature",
+                              "properties": {"id": zid, "name": zone_names.get(zid, "")},
+                              "geometry": mapping(geom)})
 
     with open(OUT_GEO, "w") as f:
         json.dump({"type": "FeatureCollection", "features": features}, f, separators=(",", ":"))
     with open(OUT_OBS, "w") as f:
         json.dump(assign, f, separators=(",", ":"))
+    with open(OUT_ZONES, "w") as f:
+        json.dump({"type": "FeatureCollection", "features": zone_features}, f, separators=(",", ":"))
+    print(f"Wrote {OUT_ZONES} ({os.path.getsize(OUT_ZONES)//1024} KB)")
     print(f"Wrote {OUT_GEO} ({os.path.getsize(OUT_GEO)//1024} KB), "
           f"{OUT_OBS} ({os.path.getsize(OUT_OBS)//1024} KB)")
 
