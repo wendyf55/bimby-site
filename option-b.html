@@ -298,7 +298,7 @@
         </nav>
         <div class="pop-body" id="popBody"></div>
         <div class="pop-foot">
-          <span id="footInfo">Data: iNaturalist BIMBY project</span>
+          <span id="footInfo">Data: Shepard &amp; Guppy (2001)</span>
           <span><button id="dlCsv">Download CSV</button><button id="copyLink">Copy link</button></span>
         </div>
       </section>
@@ -594,13 +594,13 @@
         [range, (state.year || (allYears.length === 1 ? allYears[0] : 'all years')) + ' date range', true],
       ].map(([n, k, small]) => `<div class="stat"><div class="n ${small ? 'small' : ''}">${n}</div><div class="k">${k}</div></div>`).join('');
       document.getElementById('footInfo').textContent =
-        `Data: iNaturalist BIMBY project${state.year ? ', ' + state.year : ''}`;
+        `Data: Shepard & Guppy (2001)${state.year ? ', ' + state.year : ''}`;
       document.getElementById('dlCsv').style.display = r.obs ? '' : 'none';
 
       const body = document.getElementById('popBody');
       updateHash();
       if (!r.obs) {
-        body.innerHTML = `<div class="empty">No butterfly sightings in this ecoregion${state.year ? ' in ' + state.year : ''} yet.<br>
+        body.innerHTML = `<div class="empty">No butterfly records in this ecoregion${state.year ? ' in ' + state.year : ''} yet.<br>
           Seen one here? Add it to the <a href="${INAT_PROJECT}" target="_blank" rel="noopener">BIMBY project on iNaturalist</a>.</div>`;
         return;
       }

@@ -489,8 +489,8 @@
         <div class="or">or</div>
         <button class="btn secondary full" type="button" id="locateBtn">${ICON.locate}<span>Use my location</span></button>
         <p class="hint">You can also click anywhere on the map.</p>
-        ${total ? `<p class="canada">So far, BIMBY volunteers have logged <b>${fmt(total)}</b> sightings of <b>${sp}</b> butterfly species across Canada.
-          <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">Join the project on iNaturalist</a>.</p>` : ''}`;
+        ${total ? `<p class="canada">The map holds <b>${fmt(total)}</b> records of <b>${sp}</b> butterfly species from British Columbia (Shepard &amp; Guppy, 2001).
+          Seen a butterfly? <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">Join the BIMBY project on iNaturalist</a>.</p>` : ''}`;
     }
 
     function resultsHTML() {
@@ -537,7 +537,7 @@
       if (!rows.length) {
         const nothing = scopeObservations().species.size === 0;
         html += `<div class="empty">${nothing
-          ? `No butterfly sightings ${where} yet. Try a bigger distance, switch to your ecoregion, or be the first:
+          ? `No butterfly records ${where} yet. Try a bigger distance, switch to your ecoregion, or be the first:
              <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">add a sighting on iNaturalist</a>.`
           : state.flyingNow ? `None of these butterflies have been recorded ${where} in ${MONTHS_LONG[THIS_MONTH]} yet.
              <button class="link-btn" type="button" id="clearFly">Show all months</button>`
@@ -549,9 +549,9 @@
       html += `
         <details class="about">
           <summary>About this data</summary>
-          <p>Sightings are research-grade observations from the
-            <a href="${INAT_PROJECT}" target="_blank" rel="noopener">BIMBY project on iNaturalist</a>, logged by volunteers.
-            A butterfly missing from the list may simply not have been reported here yet.</p>
+          <p>Butterfly records (1950&ndash;2025, British Columbia) come from the occurrence data compiled for
+            Shepard, J., &amp; Guppy, C. (2001). <i>Butterflies of British Columbia: Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern Oregon, Northern Idaho, and Northwestern Montana</i>. UBC Press.
+            A butterfly missing from the list may simply not have been recorded here yet.</p>
           <p>Descriptions come from Wikipedia and photos from iNaturalist photographers (credited on each butterfly).
             Plant lists come from the Xerces Society. Ecoregions: Agriculture and Agri-Food Canada.</p>
         </details>`;

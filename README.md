@@ -1,7 +1,6 @@
 # BIMBY — Butterflies In My Backyard
 
-A citizen-science map of Canada. Click a location to see which butterflies have been
-observed within 15 km, then click a butterfly to see its host and nectar plants.
+A citizen-science map of BC.
 
 ## Running locally
 
@@ -22,9 +21,11 @@ Then open <http://localhost:8000>
     dev-switcher.js                Dev-mode option switcher (open any page with ?dev)
     species-info.js                Species photos + descriptions, shared by all pages
     data/                          (git-ignored)
-      observations.json            Butterfly observations used by the app (generated)
+      observations.json            Butterfly occurrence records used by the app (generated)
+      occurrence_data_subset.csv   Shepard & Guppy occurrence data (CSV export of the .numbers file)
+      observations-inat-2026-09.json  Previous app data from the iNat export (backup)
       plant-lists.json             Host/nectar plant lists, one entry per region/source
-      observations-782254.csv/     Raw iNaturalist export (kept for provenance)
+      observations-782254.csv/     Raw iNaturalist export (previous source, kept for provenance)
       ecoregions.geojson           Simplified ecoregion outlines (generated)
       observation-ecoregions.json  Observation id -> ecoregion id (generated)
       ecozones.geojson             Ecozone outlines (generated; not currently used)
@@ -32,24 +33,29 @@ Then open <http://localhost:8000>
       species-info-overrides.json  Optional hand fixes for the above
       raw/                         Ecoregion + ecozone shapefile zips from AAFC
     scripts/
-      build_observations.py        Rebuilds observations.json from the raw CSV
+      build_observations.py        Rebuilds observations.json from the occurrence CSV
       build_ecoregions.py          Builds the three ecoregion/ecozone files above
       build_species_info.py        Builds species-info.json (needs internet)
 
 ## Data sources
 
-### Butterfly observations — iNaturalist
+### Butterfly occurrences — Shepard & Guppy (2001)
 
-- **Source:** iNaturalist project *"2026 Butterflies in My Backyard (BIMBY)"*
-  (project slug: `2026-butterflies-in-my-backyard-bimby-project`).
-- **Export:** research-grade observations, exported 2026-09-15.
-- **Contents:** 24,374 observations across 251 species; every record has coordinates.
-- **Fields used:** `scientific_name`, `common_name`, `latitude`, `longitude`,
-  `observed_on`, `id`.
-- **Licensing:** individual observations carry their own licenses (e.g. CC-BY-NC);
-  see the `license` column in the raw export. Attribute observers per iNaturalist terms.
-- **Pipeline:** the raw export lives in `data/observations-782254.csv/`; running
-  `scripts/build_observations.py` converts it to `data/observations.json`.
+- **Source:** Shepard, J., & Guppy, C. (2001). *Butterflies of British Columbia:
+  Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington,
+  Northern Oregon, Northern Idaho, and Northwestern Montana.* UBC Press.
+- **File:** `Occurrence_data-subset.numbers` (added 2026-10-05), exported to
+  `data/occurrence_data_subset.csv`.
+- **Contents:** 104,279 records of 50 species, 1950–2025, all in British Columbia;
+  every record has coordinates and a date. Most common: Small White (8,384),
+  Woodland Skipper (5,386), Lorquin's Admiral (4,871).
+- **Fields used:** `Species_binomial`, `Latitude`, `Longitude`, `Date`; `id` is the
+  row number. The data has no common names — `build_observations.py` takes them from
+  `species-info.json` / the old iNat data, plus a small `COMMON_NAMES` table in the
+  script for the four lumped taxa (e.g. *Celastrina echo-asheri*).
+- **Pipeline:** `python3 scripts/build_observations.py` (add
+  `--from-numbers Occurrence_data-subset.numbers` to re-export the CSV first), then
+  `scripts/build_ecoregions.py` and `scripts/build_species_info.py`.
 
 ### Nectar & host plants — Xerces Society
 
@@ -57,12 +63,6 @@ Then open <http://localhost:8000>
   *Monarch Butterfly Nectar Plant Lists for Conservation Plantings.*
   The Xerces Society for Invertebrate Conservation. Publication 18-003_02.
 - **URL:** <https://xerces.org/sites/default/files/publications/18-003_02_Monarch-Nectar-Plant-Lists-FS_web%20-%20Jessa%20Kay%20Cruz.pdf>
-- **Scope so far:** the **Maritime Northwest** region (n.w. CA, w. OR, w. WA),
-  25 species (3 are milkweeds = Monarch larval host plants). This is the closest
-  Xerces region to British Columbia; note the Xerces regions are US-based, so
-  BC is not literally covered.
-- **Caveat:** these lists are **Monarch-specific**. Plant data for other species
-  will need additional sources.
 
 ### Ecoregions — National Ecological Framework for Canada (used by option-a.html and option-b.html)
 
