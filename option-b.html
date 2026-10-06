@@ -32,7 +32,7 @@
       --card-line: #e4e1d6;
       --card-soft: #f1efe7;
 
-      --sidebar-w: 340px;
+      --sidebar-w: 420px;
       --popup-w: 600px;
     }
 
@@ -337,7 +337,8 @@
     const multiYear = () => !state.year && allYears.length > 1;
 
     // ---------- Map ----------
-    const map = L.map('map', { zoomSnap: 0.25 }).setView([58.0, -96.0], 4);
+    const BC_BOUNDS = [[48.2, -139.1], [60.0, -114.0]];   // British Columbia
+    const map = L.map('map', { zoomSnap: 0.25 }).fitBounds(BC_BOUNDS);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
