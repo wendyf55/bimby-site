@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BIMBY — Option C</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="species-info.js"></script>
+
+  <style>
+    /*
+     * Option C — "Your backyard"
+     * One question first (where is your backyard?), then two levels of answer
+     * (near you / your ecoregion), then butterflies as photo cards that open in place.
+     */
+    :root {
+      --green-900: #22301b;
+      --green-800: #33472a;
+      --green-100: #e2ecd9;
+      --accent: #e79a3c;
+      --accent-ink: #2b1d06;
+      --link: #8a4a0c;
+
+      --bg: #fbfaf6;
+      --ink: #1f261b;
+      --dim: #5c6556;
+      --line: #e4e1d6;
+      --soft: #f1efe7;
+      --focus: #2f6fdd;
+
+      --panel-w: 50vw;
+      /* default; the divider lets people drag it (saved per browser) */
+      --radius: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+    }
+
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.45;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+      color: inherit;
+    }
+
+    :focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    svg.icon {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    #layout {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* ---------- Panel ---------- */
+    #panel {
+      width: var(--panel-w);
+      flex: 0 0 var(--panel-w);
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      border-right: 1px solid var(--line);
+      z-index: 1001;
+      min-width: 360px;
+    }
+
+    /* Drag handle between the panel and the map */
+    #resizer {
+      flex: 0 0 10px;
+      margin: 0 -5px;
+      position: relative;
+      z-index: 1002;
+      cursor: col-resize;
+      background: transparent;
+      border: 0;
+      padding: 0;
+      touch-action: none;
+    }
+
+    #resizer::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 6px;
+      height: 44px;
+      border-radius: 3px;
+      background: var(--line);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);
+    }
+
+    #resizer:hover::after,
+    #resizer:focus-visible::after,
+    #resizer.dragging::after {
+      background: var(--green-800);
+    }
+
+    #resizer:focus-visible {
+      outline: none;
+    }
+
+    body.resizing {
+      cursor: col-resize;
+      user-select: none;
+    }
+
+    body.resizing #map {
+      pointer-events: none;
+    }
+
+    .app-head {
+      background: var(--green-800);
+      color: #f4f6f0;
+      padding: 16px 22px 14px;
+    }
+
+    .app-title {
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
+
+    .app-sub {
+      font-size: 13px;
+      opacity: 0.75;
+      margin-top: 2px;
+    }
+
+    #content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 22px 28px;
+    }
+
+    h2.lead {
+      font-size: 24px;
+      line-height: 1.2;
+      margin: 6px 0 6px;
+      letter-spacing: -0.01em;
+    }
+
+    p.sub {
+      color: var(--dim);
+      margin: 0 0 18px;
+    }
+
+    .search {
+      display: flex;
+      gap: 8px;
+    }
+
+    .search input {
+      flex: 1;
+      min-width: 0;
+      padding: 11px 12px;
+      border: 1px solid #cfcabc;
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn.primary {
+      background: var(--green-800);
+      color: #fff;
+    }
+
+    .btn.primary:hover {
+      background: var(--green-900);
+    }
+
+    .btn.secondary {
+      background: #fff;
+      border: 1px solid #cfcabc;
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    .btn.secondary:hover {
+      background: var(--soft);
+    }
+
+    .btn.full {
+      width: 100%;
+    }
+
+    .or {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--dim);
+      font-size: 13px;
+      margin: 14px 0;
+    }
+
+    .or::before,
+    .or::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--line);
+    }
+
+    .hint {
+      color: var(--dim);
+      font-size: 13px;
+      margin: 12px 0 0;
+    }
+
+    .msg {
+      color: #8a2a0c;
+      font-size: 13px;
+      margin: 8px 0 0;
+    }
+
+    .matches {
+      list-style: none;
+      padding: 0;
+      margin: 10px 0 0;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .matches li+li {
+      border-top: 1px solid var(--line);
+    }
+
+    .matches button {
+      width: 100%;
+      text-align: left;
+      background: #fff;
+      border: 0;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+
+    .matches button:hover {
+      background: var(--soft);
+    }
+
+    .matches small {
+      display: block;
+      color: var(--dim);
+    }
+
+    .canada {
+      margin-top: 26px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      color: var(--dim);
+      font-size: 13px;
+    }
+
+    .canada b {
+      color: var(--ink);
+    }
+
+    /* Place + summary */
+    .place {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .place .name {
+      flex: 1;
+      min-width: 0;
+      font-weight: 700;
+      font-size: 17px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .link-btn {
+      background: none;
+      border: 0;
+      padding: 4px 0;
+      color: var(--link);
+      cursor: pointer;
+      text-decoration: underline;
+      font-size: 14px;
+    }
+
+    .scope {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .tile {
+      text-align: left;
+      background: #fff;
+      border: 1.5px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px 12px 11px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .tile:hover {
+      border-color: #cfcabc;
+    }
+
+    .tile[aria-disabled="true"] {
+      cursor: default;
+      opacity: 0.7;
+    }
+
+    .tile[aria-pressed="true"] {
+      border-color: var(--green-800);
+      box-shadow: inset 0 0 0 1px var(--green-800);
+      background: #f6f9f2;
+    }
+
+    .tile .k {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .tile .t {
+      font-weight: 600;
+      margin: 2px 0 6px;
+      font-size: 14px;
+      line-height: 1.25;
+    }
+
+    .tile .n {
+      font-size: 22px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+
+    .tile .n small {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--dim);
+    }
+
+    .tile .s {
+      font-size: 12px;
+      color: var(--dim);
+    }
+
+    .tile select {
+      border: 0;
+      background: transparent;
+      font-weight: 600;
+      padding: 0;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .trend-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 9px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 11px 4px 9px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .trend-btn:hover,
+    .trend-btn[aria-expanded="true"] {
+      background: var(--green-100);
+      border-color: #b9cba8;
+    }
+
+    .trend-btn svg.icon {
+      width: 14px;
+      height: 14px;
+      flex-basis: 14px;
+    }
+
+    /* Collapsible sections inside a butterfly's detail */
+    details.sec {
+      border-top: 1px solid var(--line);
+      margin-top: 14px;
+    }
+
+    details.sec>summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 0 4px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    details.sec>summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.sec>summary::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transform: rotate(-45deg);
+      transition: transform 0.15s;
+      margin: 0 3px 0 2px;
+    }
+
+    details.sec[open]>summary::before {
+      transform: rotate(45deg);
+    }
+
+    details.sec>summary:hover {
+      color: var(--ink);
+    }
+
+    details.sec>summary .hint-r {
+      margin-left: auto;
+      font-weight: 400;
+      letter-spacing: 0;
+      text-transform: none;
+      font-size: 12px;
+    }
+
+    /* Keep charts at a readable size when the panel is dragged wide */
+    .detail .chart {
+      max-width: 520px;
+    }
+
+    .chart-sub {
+      font-size: 12px;
+      color: var(--dim);
+      margin: 0 0 6px;
+    }
+
+    /* ---------- Trends drawer (slides out from the panel over the map) ---------- */
+    #trends {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: min(580px, 94%);
+      background: var(--bg);
+      z-index: 1100;   /* above Leaflet's controls (1000) */
+      display: flex;
+      flex-direction: column;
+      box-shadow: 6px 0 22px rgba(0, 0, 0, 0.2);
+      transform: translateX(-104%);
+      visibility: hidden;
+      transition: transform 0.25s ease, visibility 0s linear 0.25s;
+    }
+
+    #trends.open {
+      transform: none;
+      visibility: visible;
+      transition: transform 0.25s ease;
+    }
+
+    .tr-head {
+      background: var(--green-800);
+      color: #f4f6f0;
+      padding: 14px 18px 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .tr-head .ttl {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .tr-head h2 {
+      margin: 0;
+      font-size: 17px;
+    }
+
+    .tr-head .where {
+      font-size: 13px;
+      opacity: 0.8;
+      margin-top: 2px;
+    }
+
+    .tr-head .close-btn {
+      background: rgba(255, 255, 255, 0.16);
+      color: inherit;
+    }
+
+    .tr-head .close-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .tr-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 18px 22px;
+    }
+
+    .tr-body .seg {
+      margin-bottom: 14px;
+    }
+
+    .tr-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tr-stats div {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+
+    .tr-stats b {
+      display: block;
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tr-stats span {
+      font-size: 12px;
+      color: var(--dim);
+    }
+
+    .tr-chart {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px 14px 10px;
+      margin-bottom: 14px;
+    }
+
+    .tr-chart h3 {
+      margin: 0 0 2px;
+      font-size: 15px;
+    }
+
+    .explain {
+      background: var(--soft);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: var(--ink);
+      margin: 0 0 10px;
+    }
+
+    /* Filters */
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 14px 0 6px;
+    }
+
+    .filters input[type=search] {
+      flex: 1 1 160px;
+      min-width: 0;
+      padding: 8px 10px;
+      border: 1px solid #cfcabc;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .filters select {
+      padding: 8px 8px;
+      border: 1px solid #cfcabc;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .chip {
+      border: 1px solid #cfcabc;
+      background: #fff;
+      border-radius: 999px;
+      padding: 7px 13px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .chip[aria-pressed="true"] {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-ink);
+      font-weight: 600;
+    }
+
+    .count-line {
+      font-size: 13px;
+      color: var(--dim);
+      margin: 6px 0 10px;
+    }
+
+    /* Cards */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      text-align: left;
+      padding: 0;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card:hover {
+      border-color: #cfcabc;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+    }
+
+    .card .ph {
+      aspect-ratio: 4 / 3;
+      background: var(--soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9a9a8f;
+      font-size: 12px;
+      position: relative;
+    }
+
+    .card .ph img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .card .meta {
+      padding: 9px 11px 11px;
+    }
+
+    .card .cn {
+      font-weight: 600;
+      line-height: 1.25;
+    }
+
+    .card .sn {
+      font-style: italic;
+      color: var(--dim);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card .ct {
+      font-size: 12px;
+      color: var(--dim);
+      margin-top: 3px;
+    }
+
+    /* Expanded card (spans the whole row) */
+    .detail {
+      grid-column: 1 / -1;
+      background: #fff;
+      border: 1.5px solid var(--green-800);
+      border-radius: var(--radius);
+      padding: 16px 16px 18px;
+      scroll-margin-top: 12px;
+    }
+
+    .detail-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .detail-head .names {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .detail-head h3 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .detail-head .sn {
+      font-style: italic;
+      color: var(--dim);
+    }
+
+    .close-btn {
+      background: var(--soft);
+      border: 0;
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .close-btn:hover {
+      background: var(--line);
+    }
+
+    .detail h4 {
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin: 18px 0 6px;
+    }
+
+    .facts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 14px;
+      font-size: 13px;
+      color: var(--dim);
+      margin-top: 6px;
+    }
+
+    .facts b {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .chart svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .chart text {
+      font-size: 11px;
+      fill: var(--dim);
+      font-family: inherit;
+    }
+
+    .chart .bar {
+      fill: var(--accent);
+    }
+
+    .chart .bar.now {
+      fill: #b8691c;
+    }
+
+    .seg {
+      display: inline-flex;
+      border: 1px solid #cfcabc;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .seg button {
+      background: #fff;
+      border: 0;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .seg button+button {
+      border-left: 1px solid #cfcabc;
+    }
+
+    .seg button[aria-pressed="true"] {
+      background: var(--accent);
+      color: var(--accent-ink);
+      font-weight: 600;
+    }
+
+    ul.plants {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    ul.plants li {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 7px 0;
+      border-bottom: 1px solid #eeebe2;
+      font-size: 14px;
+    }
+
+    ul.plants i {
+      color: var(--dim);
+    }
+
+    ul.plants .bloom {
+      color: var(--dim);
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .list-select {
+      width: 100%;
+      padding: 7px 8px;
+      border: 1px solid #cfcabc;
+      border-radius: 8px;
+      background: #fff;
+      margin-bottom: 6px;
+    }
+
+    .note {
+      font-size: 13px;
+      color: var(--dim);
+      background: var(--soft);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .cite {
+      font-size: 11px;
+      color: var(--dim);
+      margin-top: 8px;
+    }
+
+    .cite a,
+    .about a {
+      color: var(--link);
+    }
+
+    .map-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 18px;
+    }
+
+    .map-row .s {
+      font-size: 13px;
+      color: var(--dim);
+    }
+
+    .empty {
+      background: var(--soft);
+      border-radius: var(--radius);
+      padding: 16px;
+      color: var(--dim);
+      font-size: 14px;
+    }
+
+    details.about {
+      margin-top: 26px;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+      font-size: 13px;
+      color: var(--dim);
+    }
+
+    details.about summary {
+      cursor: pointer;
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    details.about p {
+      margin: 8px 0 0;
+    }
+
+    /* ---------- Map ---------- */
+    #mapwrap {
+      flex: 1;
+      position: relative;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+    }
+
+    .you-pin {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--green-800);
+      border: 3px solid #fff;
+      box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+    }
+
+    .map-banner {
+      background: var(--green-900);
+      color: #f4f6f0;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .map-banner .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 1px solid #fff;
+    }
+
+    .map-banner button {
+      background: rgba(255, 255, 255, 0.16);
+      color: inherit;
+      border: 0;
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .map-banner button:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .map-hint {
+      background: rgba(255, 255, 255, 0.95);
+      color: var(--ink);
+      padding: 7px 11px;
+      border-radius: 8px;
+      font-size: 13px;
+      box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    .leaflet-tooltip {
+      font-family: inherit;
+    }
+
+    /* ---------- Phones: map on top, results below ---------- */
+    @media (max-width: 800px) {
+      #layout {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+      }
+
+      #mapwrap {
+        order: 1;
+        flex: 0 0 42vh;
+        height: 42vh;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+
+      #resizer {
+        display: none;
+      }
+
+      #panel {
+        order: 2;
+        width: 100%;
+        min-width: 0;
+        flex: 1 1 auto;
+        height: auto;
+        border-right: 0;
+        border-top-left-radius: 16px;
+        border-top-right-radius: 16px;
+        margin-top: -14px;
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+        position: relative;
+        z-index: 2;
+      }
+
+      .app-head {
+        border-top-left-radius: 16px;
+        border-top-right-radius: 16px;
+      }
+
+      #content {
+        overflow: visible;
+      }
+
+      #trends {
+        position: fixed;
+        inset: 0;
+        width: auto;
+        z-index: 3000;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .scope {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="layout">
+    <aside id="panel" aria-label="Butterflies near you">
+      <header class="app-head">
+        <div class="app-title">Butterfly Distribution and Plant Associations</div>
+        <div class="app-sub">Provide your location or click anywhere on the map</div>
+      </header>
+      <div id="content" aria-live="polite"></div>
+    </aside>
+    <div id="resizer" role="separator" aria-orientation="vertical" aria-label="Resize panel" tabindex="0"
+      title="Drag to resize (double-click to reset)"></div>
+    <main id="mapwrap">
+      <section id="trends" aria-label="Trends by year" aria-hidden="true"></section>
+      <div id="map" role="application" aria-label="Map of British Columbia"></div>
+    </main>
+  </div>
+
+  <script>
+    // ---------- Constants & helpers ----------
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const THIS_MONTH = new Date().getMonth();
+    const RADII = [5, 15, 30, 50];
+    const INAT_PROJECT = 'https://www.inaturalist.org/projects/2026-butterflies-in-my-backyard-bimby-project';
+    const GEOCODER = 'https://nominatim.openstreetmap.org';   // OpenStreetMap place search (light use only)
+
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmt = n => n.toLocaleString('en-CA');
+    const plural = (n, one, many = one + 's') => `${fmt(n)} ${n === 1 ? one : many}`;
+    const fmtDate = d => { const [y, m, dd] = d.split('-'); return `${MONTHS[+m - 1]} ${+dd}, ${y}`; };
+    const ICON = {
+      pin: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+      locate: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>',
+      search: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg>',
+      bars: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg>',
+    };
+
+    // ---------- State ----------
+    let observations = [], plantIndex = {}, regions = [], allYears = [];
+    const state = {
+      point: null, place: '', radiusKm: 15, region: null,   // region = GeoJSON feature or null
+      scope: 'near',                                          // 'near' | 'region'
+      q: '', flyingNow: false, sort: 'count', year: '',
+      open: null, plantCat: 'host', listId: null,             // expanded card
+      mapped: null,                                           // species shown as dots
+      matches: null, message: '', showEcoInfo: false,
+      trends: null,                                           // 'near' | 'region' when the trends drawer is open
+      secOpen: { months: true, years: true },                 // collapsible sections in a butterfly's detail
+    };
+    let YEARS = [];                                           // every year from first to last record (no gaps)
+    let scopeCache = null;
+
+    // ---------- Map ----------
+    const BC_BOUNDS = [[48.2, -139.1], [60.0, -114.0]];   // British Columbia
+    const map = L.map('map', { zoomSnap: 0.25 }).fitBounds(BC_BOUNDS);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        + ' | Ecoregions: <a href="https://sis.agr.gc.ca/cansis/nsdb/ecostrat/" target="_blank" rel="noopener">AAFC</a>'
+    }).addTo(map);
+    // ---------- Resizable panel (desktop) ----------
+    (function () {
+      const KEY = 'bimby-panel-w', root = document.documentElement, handle = document.getElementById('resizer');
+      const MIN = 360, MAP_MIN = 320;
+      const clamp = w => Math.round(Math.max(MIN, Math.min(w, window.innerWidth - MAP_MIN)));
+      const set = (w, save) => {
+        if (w == null) root.style.removeProperty('--panel-w');
+        else root.style.setProperty('--panel-w', clamp(w) + 'px');
+        handle.setAttribute('aria-valuenow', Math.round(document.getElementById('panel').getBoundingClientRect().width));
+        map.invalidateSize();
+        if (save !== undefined) { try { w == null ? localStorage.removeItem(KEY) : localStorage.setItem(KEY, clamp(w)); } catch (e) { } }
+      };
+      try { const w = +localStorage.getItem(KEY); if (w) set(w); } catch (e) { }
+      handle.addEventListener('pointerdown', e => {
+        e.preventDefault(); handle.setPointerCapture(e.pointerId);
+        handle.classList.add('dragging'); document.body.classList.add('resizing');
+        const move = ev => set(ev.clientX);
+        const up = ev => {
+          handle.releasePointerCapture(ev.pointerId); handle.classList.remove('dragging'); document.body.classList.remove('resizing');
+          handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up);
+          set(ev.clientX, true);
+        };
+        handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up);
+      });
+      handle.addEventListener('dblclick', () => set(null, true));
+      handle.addEventListener('keydown', e => {
+        const cur = document.getElementById('panel').getBoundingClientRect().width;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); set(cur + (e.key === 'ArrowRight' ? 40 : -40), true); }
+        if (e.key === 'Home' || e.key === 'Escape') { e.preventDefault(); set(null, true); }
+      });
+      window.addEventListener('resize', () => { const w = root.style.getPropertyValue('--panel-w'); if (w) set(parseFloat(w)); else map.invalidateSize(); });
+    })();
+    const youIcon = L.divIcon({ className: '', html: '<div class="you-pin"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+    let youMarker = null, radiusCircle = null, regionLayer = null, dotLayer = null;
+    const dotRenderer = L.canvas({ padding: 0.5 });
+
+    const hint = L.control({ position: 'topright' });
+    hint.onAdd = () => { const d = L.DomUtil.create('div', 'map-hint'); d.textContent = 'Click the map to choose a spot'; return d; };
+    hint.addTo(map);
+    const banner = L.control({ position: 'topright' });
+    banner.onAdd = () => { const d = L.DomUtil.create('div', 'map-banner'); L.DomEvent.disableClickPropagation(d); return d; };
+
+    map.on('click', e => setPoint(e.latlng, null, true));
+
+    // ---------- Load data ----------
+    Promise.all([
+      fetch('data/observations.json').then(r => r.json()),
+      fetch('data/plant-lists.json').then(r => r.json()),
+      fetch('data/ecoregions.geojson').then(r => r.json()),
+      fetch('data/observation-ecoregions.json').then(r => r.json()),
+      SpeciesInfo.load(),
+    ]).then(([obs, lists, geo, obsRegion]) => {
+      observations = obs;
+      for (const o of observations) {
+        o._region = obsRegion[o.id] ?? null;
+        o._year = (o.observedOn || '').slice(0, 4);
+        o._month = +(o.observedOn || '').slice(5, 7) - 1;
+      }
+      for (const l of lists) (plantIndex[l.butterfly.scientificName] ??= []).push(l);
+      regions = geo.features.map(f => ({ f, bbox: bboxOf(f.geometry) }));
+      allYears = [...new Set(observations.map(o => o._year).filter(Boolean))].sort();
+      for (let y = +allYears[0]; y <= +allYears[allYears.length - 1]; y++) YEARS.push(String(y));
+      if (!restoreFromHash()) render();
+    }).catch(err => {
+      document.getElementById('content').innerHTML = '<p class="empty">Sorry, the butterfly data could not be loaded.</p>';
+      console.error(err);
+    });
+
+    // ---------- Which ecoregion is a point in? (ray casting on the outlines) ----------
+    function bboxOf(g) {
+      let b = [Infinity, Infinity, -Infinity, -Infinity];
+      const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+      for (const poly of polys) for (const [x, y] of poly[0]) {
+        if (x < b[0]) b[0] = x; if (y < b[1]) b[1] = y; if (x > b[2]) b[2] = x; if (y > b[3]) b[3] = y;
+      }
+      return b;
+    }
+    function inRing(x, y, ring) {
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    }
+    function regionAt(latlng) {
+      const x = latlng.lng, y = latlng.lat;
+      for (const { f, bbox } of regions) {
+        if (x < bbox[0] || x > bbox[2] || y < bbox[1] || y > bbox[3]) continue;
+        const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+        for (const poly of polys) {
+          if (inRing(x, y, poly[0]) && !poly.slice(1).some(h => inRing(x, y, h))) return f;
+        }
+      }
+      return null;
+    }
+
+    // ---------- Choosing a spot ----------
+    function setPoint(latlng, label, fromMapClick) {
+      state.point = L.latLng(latlng);
+      state.place = label || '';
+      state.region = regionAt(state.point);
+      state.open = null; state.matches = null; state.message = ''; state.q = '';
+      if (!state.region && state.scope === 'region') state.scope = 'near';
+      scopeCache = null;
+      drawPlace(!fromMapClick);
+      render();
+      if (!label) reverseGeocode(state.point);
+    }
+
+    function drawPlace(zoom) {
+      hint.remove();
+      youMarker?.remove(); radiusCircle?.remove(); regionLayer?.remove();
+      if (!state.point) { hint.addTo(map); return; }
+      if (state.region) {
+        regionLayer = L.geoJSON(state.region, {
+          interactive: false,
+          style: { color: '#33472a', weight: 1.5, dashArray: '5 4', fillColor: '#33472a', fillOpacity: state.scope === 'region' ? 0.08 : 0.03 },
+        }).addTo(map);
+      }
+      radiusCircle = L.circle(state.point, {
+        radius: state.radiusKm * 1000, color: '#e79a3c', weight: 2, fillColor: '#e79a3c',
+        fillOpacity: state.scope === 'near' ? 0.12 : 0.04, interactive: false,
+      }).addTo(map);
+      youMarker = L.marker(state.point, { icon: youIcon, keyboard: false, interactive: false }).addTo(map);
+      if (zoom) fitScope();
+    }
+    function fitScope() {
+      if (!state.point) return;
+      const b = state.scope === 'region' && regionLayer ? regionLayer.getBounds() : radiusCircle.getBounds();
+      map.fitBounds(b, { padding: [70, 70], maxZoom: 11 });   // leave some surroundings visible
+    }
+
+    function searchPlace(q) {
+      q = q.trim();
+      if (!q) return;
+      state.message = 'Searching…'; state.matches = null; render();
+      fetch(`${GEOCODER}/search?format=jsonv2&countrycodes=ca&viewbox=-139.1,60.0,-114.0,48.2&bounded=1&limit=5&q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(list => {
+          state.message = list.length ? '' : `No places in British Columbia found for “${q}”. Try a town name or postal code.`;
+          state.matches = list.map(p => ({ lat: +p.lat, lng: +p.lon, name: p.display_name }));
+          if (state.matches.length === 1) pickMatch(0); else render();
+        })
+        .catch(() => { state.message = 'Place search is not available right now. You can click the map instead.'; render(); });
+    }
+    function pickMatch(i) {
+      const m = state.matches[i];
+      setPoint({ lat: m.lat, lng: m.lng }, shortPlace(m.name), false);
+    }
+    const shortPlace = name => name.split(',').slice(0, 2).join(',').trim();
+
+    function reverseGeocode(latlng) {
+      const at = latlng;
+      fetch(`${GEOCODER}/reverse?format=jsonv2&zoom=12&lat=${at.lat}&lon=${at.lng}`)
+        .then(r => r.json())
+        .then(p => {
+          if (state.point !== at || !p || !p.address) return;
+          const a = p.address;
+          const town = a.city || a.town || a.village || a.hamlet || a.municipality || a.county || '';
+          state.place = [town, a.state].filter(Boolean).join(', ');
+          if (state.place) renderPlaceName();
+        })
+        .catch(() => { });
+    }
+
+    function useMyLocation() {
+      if (!navigator.geolocation) { state.message = 'Your browser can’t share its location. Try searching instead.'; render(); return; }
+      state.message = 'Finding your location…'; render();
+      navigator.geolocation.getCurrentPosition(
+        pos => setPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude }, null, false),
+        () => { state.message = 'We couldn’t get your location. Try searching or click the map.'; render(); },
+        { enableHighAccuracy: false, timeout: 10000 }
+      );
+    }
+
+    function resetPlace() {
+      state.point = null; state.region = null; state.open = null; state.place = '';
+      showSpeciesOnMap(null);
+      drawPlace(false);
+      render();
+    }
+
+    // ---------- Butterflies in the current scope ----------
+    function scopeObservations() {
+      if (scopeCache) return scopeCache;
+      const inYear = o => !state.year || o._year === state.year;
+      let obs;
+      if (state.scope === 'region') {
+        const id = state.region?.properties.id;
+        obs = observations.filter(o => o._region === id && inYear(o));
+      } else {
+        const r = state.radiusKm * 1000, p = state.point;
+        // quick box check first, then exact distance
+        const dLat = state.radiusKm / 111, dLng = dLat / Math.max(0.2, Math.cos(p.lat * Math.PI / 180));
+        obs = observations.filter(o => inYear(o) && Math.abs(o.lat - p.lat) <= dLat && Math.abs(o.lng - p.lng) <= dLng
+          && map.distance(p, [o.lat, o.lng]) <= r);
+      }
+      const species = new Map();
+      for (const o of obs) {
+        let s = species.get(o.scientificName);
+        if (!s) species.set(o.scientificName, s = { sci: o.scientificName, common: o.commonName, count: 0, months: new Array(12).fill(0), first: o.observedOn, last: o.observedOn });
+        s.count++; s.months[o._month]++;
+        if (o.observedOn < s.first) s.first = o.observedOn;
+        if (o.observedOn > s.last) s.last = o.observedOn;
+      }
+      return (scopeCache = { obs, species });
+    }
+    // Records in a scope across ALL years (the year charts ignore the year filter)
+    function scopeAllYears(scope) {
+      if (scope === 'region') {
+        const id = state.region?.properties.id;
+        return id == null ? [] : observations.filter(o => o._region === id);
+      }
+      const r = state.radiusKm * 1000, p = state.point;
+      const dLat = state.radiusKm / 111, dLng = dLat / Math.max(0.2, Math.cos(p.lat * Math.PI / 180));
+      return observations.filter(o => Math.abs(o.lat - p.lat) <= dLat && Math.abs(o.lng - p.lng) <= dLng
+        && map.distance(p, [o.lat, o.lng]) <= r);
+    }
+    function yearly(obs) {
+      const idx = new Map(YEARS.map((y, i) => [y, i]));
+      const recs = new Array(YEARS.length).fill(0), sp = YEARS.map(() => new Set());
+      for (const o of obs) {
+        const i = idx.get(o._year);
+        if (i !== undefined) { recs[i]++; sp[i].add(o.scientificName); }
+      }
+      return { recs, species: sp.map(x => x.size) };
+    }
+    function scopeLabel(scope) {
+      return scope === 'region' ? `${esc(state.region.properties.name)} ecoregion`
+        : `Within ${state.radiusKm} km of ${esc(state.place || 'your spot')}`;
+    }
+
+    function statsFor(scope) {
+      const saved = [state.scope, scopeCache];
+      state.scope = scope; scopeCache = null;
+      const s = scopeObservations();
+      const out = { obs: s.obs.length, species: s.species.size };
+      [state.scope, scopeCache] = saved;
+      return out;
+    }
+
+    function visibleSpecies() {
+      let rows = [...scopeObservations().species.values()];
+      const q = state.q.trim().toLowerCase();
+      if (q) rows = rows.filter(s => (s.sci + ' ' + (s.common || '')).toLowerCase().includes(q));
+      if (state.flyingNow) rows = rows.filter(s => s.months[THIS_MONTH] > 0);
+      const name = s => s.common || s.sci;
+      const sorts = {
+        count: (a, b) => b.count - a.count || name(a).localeCompare(name(b)),
+        rare: (a, b) => a.count - b.count || name(a).localeCompare(name(b)),
+        az: (a, b) => name(a).localeCompare(name(b)),
+      };
+      return rows.sort(sorts[state.sort]);
+    }
+
+    // ---------- Render ----------
+    function render() {
+      updateHash();
+      const box = document.getElementById('content');
+      box.innerHTML = state.point ? resultsHTML() : startHTML();
+      wire(box);
+      renderTrends();
+    }
+
+    function startHTML() {
+      const total = observations.length, sp = new Set(observations.map(o => o.scientificName)).size;
+      return `
+        <h2 class="lead">Where is your backyard?</h2>
+        <p class="sub">Find out which butterflies have been seen near you, when they fly, and which plants help them.</p>
+        <form class="search" id="placeForm" role="search">
+          <label class="sr-only" for="placeInput">Town, city or postal code</label>
+          <input id="placeInput" type="search" placeholder="Town, city or postal code" autocomplete="off">
+          <button class="btn primary" type="submit">${ICON.search}<span>Search</span></button>
+        </form>
+        ${state.matches && state.matches.length > 1 ? `<ul class="matches" aria-label="Places found">${state.matches.map((m, i) =>
+        `<li><button type="button" data-match="${i}">${esc(shortPlace(m.name))}<small>${esc(m.name)}</small></button></li>`).join('')}</ul>` : ''}
+        ${state.message ? `<p class="msg">${esc(state.message)}</p>` : ''}
+        <div class="or">or</div>
+        <button class="btn secondary full" type="button" id="locateBtn">${ICON.locate}<span>Use my location</span></button>
+        <p class="hint">You can also click anywhere on the map.</p>
+        ${total ? `<p class="canada">The map holds <b>${fmt(total)}</b> records of <b>${sp}</b> butterfly species from British Columbia (Shepard &amp; Guppy, 2001).
+          Seen a butterfly? <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">Join the BIMBY project on iNaturalist</a>.</p>` : ''}`;
+    }
+
+    function resultsHTML() {
+      const near = statsFor('near'), reg = state.region ? statsFor('region') : null;
+      const rows = visibleSpecies();
+      const where = state.scope === 'near' ? `within ${state.radiusKm} km` : `in ${esc(state.region.properties.name)}`;
+      let html = `
+        <div class="place">
+          ${ICON.pin}<span class="name" id="placeName">${esc(state.place || 'Your spot')}</span>
+          <button class="link-btn" type="button" id="changeBtn">Change</button>
+        </div>
+        <div class="scope" role="group" aria-label="Show butterflies">
+          <div class="tile" role="button" tabindex="0" data-scope="near" aria-pressed="${state.scope === 'near'}">
+            <div class="k">Near you</div>
+            <div class="t">Within <select id="radiusSel" aria-label="Distance">${RADII.map(r => `<option value="${r}" ${r === state.radiusKm ? 'selected' : ''}>${r} km</option>`).join('')}</select></div>
+            <div class="n">${near.species} <small>species</small></div>
+            <div class="s">${plural(near.obs, 'sighting')}</div>
+            <button class="trend-btn" type="button" data-trends="near" aria-expanded="${state.trends === 'near'}" aria-controls="trends">${ICON.bars}Trends by year</button>
+          </div>
+          <div class="tile" role="button" tabindex="${reg ? 0 : -1}" data-scope="region" aria-pressed="${state.scope === 'region'}" aria-disabled="${!reg}">
+            <div class="k">Your ecoregion</div>
+            <div class="t">${reg ? esc(state.region.properties.name) : 'Not in a mapped ecoregion'}</div>
+            ${reg ? `<div class="n">${reg.species} <small>species</small></div><div class="s">${plural(reg.obs, 'sighting')}</div>
+            <button class="trend-btn" type="button" data-trends="region" aria-expanded="${state.trends === 'region'}" aria-controls="trends">${ICON.bars}Trends by year</button>` : ''}
+          </div>
+        </div>
+        <button class="link-btn" type="button" id="ecoInfo" aria-expanded="${state.showEcoInfo}" style="font-size:13px;margin-bottom:6px">What’s an ecoregion?</button>
+        ${state.showEcoInfo ? `<p class="explain">An <b>ecoregion</b> is a natural area with similar climate, landforms, plants and wildlife.
+          Canada has 194 of them${state.region ? `; yours is part of the <b>${esc(state.region.properties.zoneName)}</b> ecozone` : ''}.
+          It shows which butterflies live in your wider area, not just close by.</p>` : ''}
+        <div class="filters">
+          <label class="sr-only" for="qInput">Search butterflies</label>
+          <input id="qInput" type="search" placeholder="Search butterflies" value="${esc(state.q)}">
+          <button class="chip" type="button" id="flyBtn" aria-pressed="${state.flyingNow}">Flying in ${MONTHS_LONG[THIS_MONTH]}</button>
+          <label class="sr-only" for="sortSel">Sort</label>
+          <select id="sortSel">
+            <option value="count" ${state.sort === 'count' ? 'selected' : ''}>Most seen</option>
+            <option value="rare" ${state.sort === 'rare' ? 'selected' : ''}>Rarest</option>
+            <option value="az" ${state.sort === 'az' ? 'selected' : ''}>A–Z</option>
+          </select>
+          ${allYears.length > 1 ? `<select id="yearSel" aria-label="Year"><option value="">All years</option>${allYears.slice().reverse().map(y =>
+        `<option ${y === state.year ? 'selected' : ''}>${y}</option>`).join('')}</select>` : ''}
+        </div>
+        <div class="count-line">${plural(rows.length, 'butterfly species', 'butterfly species')} ${where}${state.flyingNow ? `, seen in ${MONTHS_LONG[THIS_MONTH]}` : ''}</div>`;
+
+      if (!rows.length) {
+        const nothing = scopeObservations().species.size === 0;
+        html += `<div class="empty">${nothing
+          ? `No butterfly records ${where} yet. Try a bigger distance, switch to your ecoregion, or be the first:
+             <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">add a sighting on iNaturalist</a>.`
+          : state.flyingNow ? `None of these butterflies have been recorded ${where} in ${MONTHS_LONG[THIS_MONTH]} yet.
+             <button class="link-btn" type="button" id="clearFly">Show all months</button>`
+            : `No butterflies match “${esc(state.q)}”.`}</div>`;
+      } else {
+        html += `<div class="grid">${rows.map(s => s.sci === state.open ? detailHTML(s) : cardHTML(s)).join('')}</div>`;
+      }
+
+      html += `
+        <details class="about">
+          <summary>About this data</summary>
+          <p>Butterfly records (1950&ndash;2025, British Columbia) come from the occurrence data compiled for
+            Shepard, J., &amp; Guppy, C. (2001). <i>Butterflies of British Columbia: Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern Oregon, Northern Idaho, and Northwestern Montana</i>. UBC Press.
+            A butterfly missing from the list may simply not have been recorded here yet.</p>
+          <p>Descriptions come from Wikipedia and photos from iNaturalist photographers (credited on each butterfly).
+            Plant lists come from the Xerces Society. Ecoregions: Agriculture and Agri-Food Canada.</p>
+        </details>`;
+      return html;
+    }
+
+    function cardHTML(s) {
+      const p = SpeciesInfo.get(s.sci)?.photo;
+      return `
+        <button class="card" type="button" data-sci="${esc(s.sci)}" aria-expanded="false">
+          <div class="ph">${p ? `<img src="${esc(p.url || p.square)}" alt="" loading="lazy">` : 'No photo yet'}</div>
+          <div class="meta">
+            <div class="cn">${esc(s.common || s.sci)}</div>
+            <div class="sn">${esc(s.sci)}</div>
+            <div class="ct">${plural(s.count, 'sighting')}</div>
+          </div>
+        </button>`;
+    }
+
+    function detailHTML(s) {
+      const lists = plantIndex[s.sci] || [];
+      const list = lists.find(l => l.id === state.listId) || lists[0];
+      const plants = list ? list.plants.filter(p => (state.plantCat === 'host') === !!p.isHost) : [];
+      const where = state.scope === 'near' ? `within ${state.radiusKm} km` : `in ${esc(state.region.properties.name)}`;
+      const total = observations.filter(o => o.scientificName === s.sci).length;
+      const peak = s.months.indexOf(Math.max(...s.months));
+      return `
+        <article class="detail" id="detail" aria-label="${esc(s.common || s.sci)}">
+          <div class="detail-head">
+            <div class="names"><h3>${esc(s.common || s.sci)}</h3><div class="sn">${esc(s.sci)}</div></div>
+            <button class="close-btn" type="button" id="closeDetail">Close</button>
+          </div>
+          <div class="facts">
+            <span><b>${plural(s.count, 'sighting')}</b> ${where}</span>
+            <span>Most seen in <b>${MONTHS_LONG[peak]}</b></span>
+            <span>Last seen <b>${fmtDate(s.last)}</b></span>
+          </div>
+          ${SpeciesInfo.card(s.sci)}
+
+          <details class="sec" data-sec="months" ${state.secOpen.months ? 'open' : ''}>
+            <summary>When it flies here <span class="hint-r">by month</span></summary>
+            <p class="chart-sub">Sightings by month ${where}${state.year ? ', ' + state.year : ''}</p>
+            <div class="chart">${monthChart(s.months)}</div>
+          </details>
+
+          ${speciesYearsHTML(s)}
+
+          <h4 style="margin-top:22px">Plants for your garden</h4>
+          <div class="seg" role="group" aria-label="Plant type">
+            <button type="button" data-cat="host" aria-pressed="${state.plantCat === 'host'}">Caterpillar food (host)</button>
+            <button type="button" data-cat="nectar" aria-pressed="${state.plantCat === 'nectar'}">Adult food (nectar)</button>
+          </div>
+          ${!list ? `<p class="note">We don’t have a plant list for this butterfly yet.</p>` : `
+            ${lists.length > 1 ? `<select class="list-select" id="listSel" aria-label="Plant list">${lists.map(l =>
+        `<option value="${esc(l.id)}" ${l === list ? 'selected' : ''}>${esc(l.region)} — ${esc(shortSource(l.source.org))} (${l.source.year})</option>`).join('')}</select>`
+            : `<p class="note" style="margin-bottom:6px">List for: ${esc(list.region)}</p>`}
+            ${plants.length ? `<ul class="plants">${plants.map(p => `<li><span>${esc(p.commonName)} <i>${esc(p.scientificName)}</i></span>${p.bloom ? `<span class="bloom">Blooms ${esc(p.bloom)}</span>` : ''}</li>`).join('')}</ul>`
+            : `<p class="note">None listed as ${state.plantCat === 'host' ? 'host' : 'nectar'} plants in this list.</p>`}
+            <p class="cite">Source: <a href="${esc(list.source.url)}" target="_blank" rel="noopener">${esc(list.source.title)}</a>, ${esc(shortSource(list.source.org))} (${list.source.year}).</p>`}
+
+          <div class="map-row">
+            <button class="btn ${state.mapped === s.sci ? 'secondary' : 'primary'}" type="button" id="mapBtn">
+              ${state.mapped === s.sci ? 'Stop showing on map' : 'Show where it’s been seen'}</button>
+            <span class="s">${plural(total, 'sighting')} across BC</span>
+          </div>
+        </article>`;
+    }
+    function shortSource(org) { return /xerces/i.test(org) ? 'Xerces Society' : org; }
+
+    function monthChart(months) {
+      const W = 400, H = 110, padL = 30, padB = 20, padT = 8, iw = W - padL - 4, ih = H - padB - padT;
+      const max = Math.max(1, ...months), step = iw / 12, bw = step * 0.66;
+      const top = max <= 5 ? max : Math.ceil(max / 5) * 5;
+      let g = `<line x1="${padL}" x2="${W - 4}" y1="${padT + ih}" y2="${padT + ih}" stroke="#e4e1d6"/>` +
+        `<text x="${padL - 5}" y="${padT + 8}" text-anchor="end">${fmt(top)}</text>` +
+        `<text x="${padL - 5}" y="${padT + ih}" text-anchor="end">0</text>`;
+      months.forEach((v, i) => {
+        const h = ih * v / top, x = padL + step * i + (step - bw) / 2, y = padT + ih - h, r = Math.min(3, h);
+        g += `<g><title>${MONTHS_LONG[i]}: ${plural(v, 'sighting')}</title>` +
+          `<rect x="${padL + step * i}" y="${padT}" width="${step}" height="${ih}" fill="transparent"/>` +
+          (h > 0 ? `<path class="bar ${i === THIS_MONTH ? 'now' : ''}" d="M${x},${padT + ih} V${y + r} Q${x},${y} ${x + r},${y} H${x + bw - r} Q${x + bw},${y} ${x + bw},${y + r} V${padT + ih} Z"/>` : '') +
+          `<text x="${padL + step * i + step / 2}" y="${H - 5}" text-anchor="middle" ${i === THIS_MONTH ? 'style="fill:#1f261b;font-weight:700"' : ''}>${MONTHS[i][0]}</text></g>`;
+      });
+      return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sightings by month">${g}</svg>`;
+    }
+
+    // One butterfly's sightings by year in the current scope (all years)
+    function speciesYearsHTML(s) {
+      const where = state.scope === 'near' ? `within ${state.radiusKm} km` : `in ${esc(state.region.properties.name)}`;
+      const recs = yearly(scopeAllYears(state.scope).filter(o => o.scientificName === s.sci)).recs;
+      const yrs = recs.filter(v => v > 0).length;
+      return `
+          <details class="sec" data-sec="years" ${state.secOpen.years ? 'open' : ''}>
+            <summary>Sightings by year <span class="hint-r">${plural(yrs, 'year')} with records</span></summary>
+            <p class="chart-sub">Records per year ${where}, ${YEARS[0]}–${YEARS[YEARS.length - 1]}${state.year ? ` (${state.year} highlighted)` : ''}</p>
+            <div class="chart">${yearChart(recs, 'sighting')}</div>
+          </details>`;
+    }
+
+    // Vertical bars, one per year; decade labels so 70+ years stay readable
+    function yearChart(values, unit) {
+      const W = 520, H = 130, padL = 34, padB = 20, padT = 8, iw = W - padL - 4, ih = H - padB - padT;
+      const max = Math.max(1, ...values), step = iw / values.length, bw = Math.max(1, step * 0.72);
+      const top = max <= 5 ? max : niceMax(max);
+      let g = `<line x1="${padL}" x2="${W - 4}" y1="${padT + ih}" y2="${padT + ih}" stroke="#e4e1d6"/>` +
+        `<line x1="${padL}" x2="${W - 4}" y1="${padT + ih / 2}" y2="${padT + ih / 2}" stroke="#efece3"/>` +
+        `<text x="${padL - 5}" y="${padT + 8}" text-anchor="end">${fmt(top)}</text>` +
+        `<text x="${padL - 5}" y="${padT + ih / 2 + 4}" text-anchor="end">${fmt(Math.round(top / 2))}</text>` +
+        `<text x="${padL - 5}" y="${padT + ih}" text-anchor="end">0</text>`;
+      values.forEach((v, i) => {
+        const yr = YEARS[i], h = ih * v / top, x = padL + step * i + (step - bw) / 2, y = padT + ih - h, r = Math.min(2, h, bw / 2);
+        g += `<g><title>${yr}: ${plural(v, unit)}</title>` +
+          `<rect x="${padL + step * i}" y="${padT}" width="${step}" height="${ih}" fill="transparent"/>` +
+          (h > 0 ? `<path class="bar ${yr === state.year ? 'now' : ''}" d="M${x},${padT + ih} V${y + r} Q${x},${y} ${x + r},${y} H${x + bw - r} Q${x + bw},${y} ${x + bw},${y + r} V${padT + ih} Z"/>` : '') +
+          (+yr % 10 === 0 ? `<line x1="${padL + step * i + step / 2}" x2="${padL + step * i + step / 2}" y1="${padT + ih}" y2="${padT + ih + 4}" stroke="#cfcabc"/>` +
+            `<text x="${padL + step * i + step / 2}" y="${H - 4}" text-anchor="middle">${yr}</text>` : '') + `</g>`;
+      });
+      return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${unit === 'species' ? 'Species' : 'Sightings'} by year">${g}</svg>`;
+    }
+    function niceMax(v) {
+      const p = Math.pow(10, Math.floor(Math.log10(v)));
+      for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
+      return 10 * p;
+    }
+
+    // ---------- Trends drawer: sightings + species by year for Near you / Your ecoregion ----------
+    function renderTrends() {
+      const el = document.getElementById('trends');
+      if (state.trends === 'region' && !state.region) state.trends = null;
+      if (!state.point) state.trends = null;
+      const open = !!state.trends;
+      el.classList.toggle('open', open);
+      el.setAttribute('aria-hidden', String(!open));
+      document.querySelectorAll('.trend-btn').forEach(b => b.setAttribute('aria-expanded', String(b.dataset.trends === state.trends)));
+      if (!open) return;
+      const sc = state.trends, obs = scopeAllYears(sc), y = yearly(obs);
+      const ys = y.recs.map((v, i) => v ? YEARS[i] : null).filter(Boolean);
+      const span = ys.length ? `${ys[0]}–${ys[ys.length - 1]}` : '—';
+      const peakI = arr => arr.indexOf(Math.max(...arr));
+      const pr = peakI(y.recs), ps = peakI(y.species);
+      el.innerHTML = `
+        <header class="tr-head">
+          <div class="ttl"><h2>Trends by year</h2><div class="where">${scopeLabel(sc)}</div></div>
+          <button class="close-btn" type="button" id="closeTrends">Close</button>
+        </header>
+        <div class="tr-body">
+          ${state.region ? `<div class="seg" role="group" aria-label="Area">
+            <button type="button" data-tscope="near" aria-pressed="${sc === 'near'}">Near you (${state.radiusKm} km)</button>
+            <button type="button" data-tscope="region" aria-pressed="${sc === 'region'}">Your ecoregion</button>
+          </div>` : ''}
+          ${!obs.length ? `<p class="note">No butterfly records here yet.</p>` : `
+          <div class="tr-stats">
+            <div><b>${fmt(obs.length)}</b><span>sightings, ${span}</span></div>
+            <div><b>${YEARS[pr]}</b><span>most sightings (${fmt(y.recs[pr])})</span></div>
+            <div><b>${YEARS[ps]}</b><span>most species (${y.species[ps]})</span></div>
+          </div>
+          <div class="tr-chart">
+            <h3>Sightings by year</h3>
+            <p class="chart-sub">Butterfly records logged each year, all species. Hover a bar for the number.</p>
+            <div class="chart">${yearChart(y.recs, 'sighting')}</div>
+          </div>
+          <div class="tr-chart">
+            <h3>Species by year</h3>
+            <p class="chart-sub">How many different butterfly species were recorded each year.</p>
+            <div class="chart">${yearChart(y.species, 'species')}</div>
+          </div>
+          <p class="note">Ups and downs partly reflect how much searching and recording happened each year,
+            not only how many butterflies there were.</p>`}
+        </div>`;
+      el.querySelector('#closeTrends').addEventListener('click', closeTrends);
+      el.querySelectorAll('[data-tscope]').forEach(b => b.addEventListener('click', () => { state.trends = b.dataset.tscope; renderTrends(); }));
+    }
+    // On phones the map area is a small sticky strip, so the drawer becomes a full-screen sheet on <body>
+    (function () {
+      const mq = window.matchMedia('(max-width: 800px)');
+      const place = () => {
+        const el = document.getElementById('trends');
+        const home = mq.matches ? document.body : document.getElementById('mapwrap');
+        if (el.parentNode !== home) home.prepend(el);
+      };
+      place(); mq.addEventListener('change', place);
+    })();
+    function closeTrends() {
+      const was = state.trends; state.trends = null; renderTrends();
+      document.querySelector(`.trend-btn[data-trends="${was}"]`)?.focus();
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.trends) closeTrends(); });
+
+    function renderPlaceName() {
+      const el = document.getElementById('placeName');
+      if (el) el.textContent = state.place || 'Your spot';
+    }
+
+    // ---------- Events ----------
+    function wire(box) {
+      const on = (sel, ev, fn) => box.querySelector(sel)?.addEventListener(ev, fn);
+
+      on('#placeForm', 'submit', e => { e.preventDefault(); searchPlace(box.querySelector('#placeInput').value); });
+      box.querySelectorAll('[data-match]').forEach(b => b.addEventListener('click', () => pickMatch(+b.dataset.match)));
+      on('#locateBtn', 'click', useMyLocation);
+      on('#changeBtn', 'click', resetPlace);
+
+      const pickScope = t => {
+        if (t.getAttribute('aria-disabled') === 'true' || state.scope === t.dataset.scope) return;
+        state.scope = t.dataset.scope; state.open = null; scopeCache = null;
+        drawPlace(false); fitScope(); render();
+      };
+      box.querySelectorAll('.tile').forEach(t => {
+        t.addEventListener('click', e => { if (!e.target.closest('select, .trend-btn')) pickScope(t); });
+        t.addEventListener('keydown', e => {
+          if ((e.key === 'Enter' || e.key === ' ') && e.target === t) { e.preventDefault(); pickScope(t); }
+        });
+      });
+      on('#radiusSel', 'change', e => {
+        state.radiusKm = +e.target.value; state.scope = 'near'; state.open = null; scopeCache = null;
+        drawPlace(false); fitScope(); render();
+      });
+      on('#ecoInfo', 'click', () => { state.showEcoInfo = !state.showEcoInfo; render(); });
+      box.querySelectorAll('.trend-btn').forEach(b => b.addEventListener('click', e => {
+        e.stopPropagation();
+        state.trends = state.trends === b.dataset.trends ? null : b.dataset.trends;
+        renderTrends();
+        if (state.trends) document.getElementById('closeTrends')?.focus({ preventScroll: true });
+      }));
+      box.querySelectorAll('details.sec').forEach(d => d.addEventListener('toggle', () => { state.secOpen[d.dataset.sec] = d.open; }));
+
+      const q = box.querySelector('#qInput');
+      q?.addEventListener('input', () => {
+        state.q = q.value; const pos = q.selectionStart; render();
+        const n = document.getElementById('qInput'); n.focus(); n.setSelectionRange(pos, pos);
+      });
+      on('#flyBtn', 'click', () => { state.flyingNow = !state.flyingNow; render(); });
+      on('#clearFly', 'click', () => { state.flyingNow = false; render(); });
+      on('#sortSel', 'change', e => { state.sort = e.target.value; render(); });
+      on('#yearSel', 'change', e => { state.year = e.target.value; scopeCache = null; state.open = null; render(); drawSpeciesDots(false); });
+
+      box.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => {
+        state.open = c.dataset.sci; state.listId = null; render();
+        const d = document.getElementById('detail');
+        d?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        document.getElementById('closeDetail')?.focus({ preventScroll: true });
+      }));
+      on('#closeDetail', 'click', () => {
+        const sci = state.open; state.open = null; render();
+        box.querySelector(`.card[data-sci="${CSS.escape(sci)}"]`)?.focus();
+      });
+      box.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { state.plantCat = b.dataset.cat; render(); }));
+      on('#listSel', 'change', e => { state.listId = e.target.value; render(); });
+      on('#mapBtn', 'click', () => showSpeciesOnMap(state.mapped === state.open ? null : state.open));
+    }
+
+    // ---------- One butterfly's sightings as dots ----------
+    function showSpeciesOnMap(sci) {
+      state.mapped = sci;
+      drawSpeciesDots(true);
+      if (state.point) render();
+    }
+    function drawSpeciesDots(zoom) {
+      dotLayer?.remove(); dotLayer = null;
+      if (!state.mapped) { banner.remove(); return; }
+      const pts = observations.filter(o => o.scientificName === state.mapped && (!state.year || o._year === state.year));
+      const name = pts[0]?.commonName || state.mapped;
+      dotLayer = L.layerGroup(pts.map(o => L.circleMarker([o.lat, o.lng], {
+        renderer: dotRenderer, radius: 4, weight: 1, color: '#ffffff', fillColor: '#e79a3c', fillOpacity: 0.9,
+      }).bindTooltip(`${esc(name)} · ${fmtDate(o.observedOn)}`))).addTo(map);
+      if (zoom && pts.length) map.fitBounds(L.latLngBounds(pts.map(o => [o.lat, o.lng])), { padding: [30, 30], maxZoom: 9 });
+      if (!banner.getContainer() || !banner.getContainer().parentNode) banner.addTo(map);
+      const d = banner.getContainer();
+      d.innerHTML = `<span class="dot"></span><span>Showing <b>${esc(name)}</b> · ${plural(pts.length, 'sighting')}</span><button type="button">Clear</button>`;
+      d.querySelector('button').addEventListener('click', () => showSpeciesOnMap(null));
+    }
+
+    // ---------- Shareable link: #at=lat,lng&r=15&view=region ----------
+    function updateHash() {
+      const parts = [];
+      if (state.point) {
+        parts.push(`at=${state.point.lat.toFixed(4)},${state.point.lng.toFixed(4)}`);
+        if (state.radiusKm !== 15) parts.push(`r=${state.radiusKm}`);
+        if (state.scope === 'region') parts.push('view=region');
+      }
+      const s = parts.join('&');
+      history.replaceState(null, '', location.pathname + location.search + (s ? '#' + s : ''));
+    }
+    function restoreFromHash() {
+      const h = new URLSearchParams(location.hash.slice(1));
+      const at = (h.get('at') || '').split(',').map(Number);
+      if (at.length !== 2 || at.some(isNaN)) return false;
+      if (RADII.includes(+h.get('r'))) state.radiusKm = +h.get('r');
+      if (h.get('view') === 'region') state.scope = 'region';
+      setPoint({ lat: at[0], lng: at[1] }, null, false);
+      return true;
+    }
+  </script>
+
+</body>
+
+</html>

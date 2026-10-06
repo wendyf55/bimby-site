@@ -1,0 +1,174 @@
+[
+    {
+        "id": "monarch-nectar-xerces-maritime-nw",
+        "butterfly": {
+            "scientificName": "Danaus plexippus",
+            "commonName": "Monarch"
+        },
+        "region": "Maritime Northwest (n.w. CA, w. OR, w. WA)",
+        "source": {
+            "org": "Xerces Society for Invertebrate Conservation",
+            "title": "Monarch Butterfly Nectar Plant Lists for Conservation Plantings",
+            "authors": [
+                "Nancy Lee Adamson",
+                "Candace Fallon",
+                "Mace Vaughan"
+            ],
+            "year": 2018,
+            "publicationId": "18-003_02",
+            "url": "https://xerces.org/sites/default/files/publications/18-003_02_Monarch-Nectar-Plant-Lists-FS_web%20-%20Jessa%20Kay%20Cruz.pdf"
+        },
+        "plants": [
+            {
+                "scientificName": "Abronia latifolia",
+                "commonName": "Coastal sand verbena",
+                "bloom": "Jan–Dec",
+                "isHost": false
+            },
+            {
+                "scientificName": "Aesculus californica",
+                "commonName": "California buckeye",
+                "bloom": "Apr–May",
+                "isHost": false
+            },
+            {
+                "scientificName": "Agastache urticifolia",
+                "commonName": "Nettleleaf giant hyssop",
+                "bloom": "Jun–Aug",
+                "isHost": false
+            },
+            {
+                "scientificName": "Asclepias cordifolia",
+                "commonName": "Heartleaf milkweed",
+                "bloom": "May–Aug",
+                "isHost": true
+            },
+            {
+                "scientificName": "Asclepias fascicularis",
+                "commonName": "Narrow-leaved milkweed",
+                "bloom": "May–Aug",
+                "isHost": true
+            },
+            {
+                "scientificName": "Asclepias speciosa",
+                "commonName": "Showy milkweed",
+                "bloom": "May–Aug",
+                "isHost": true
+            },
+            {
+                "scientificName": "Baccharis pilularis",
+                "commonName": "Coyotebrush",
+                "bloom": "Jan–Dec",
+                "isHost": false
+            },
+            {
+                "scientificName": "Ceanothus thyrsiflorus",
+                "commonName": "Blueblossom",
+                "bloom": "Feb–Apr",
+                "isHost": false
+            },
+            {
+                "scientificName": "Chamerion angustifolium",
+                "commonName": "Fireweed",
+                "bloom": "Jul–Aug",
+                "isHost": false
+            },
+            {
+                "scientificName": "Cirsium occidentale",
+                "commonName": "Cobwebby thistle",
+                "bloom": "Apr–Jul",
+                "isHost": false
+            },
+            {
+                "scientificName": "Clematis ligusticifolia",
+                "commonName": "Western white clematis",
+                "bloom": "Jun–Aug",
+                "isHost": false
+            },
+            {
+                "scientificName": "Delphinium glaucum",
+                "commonName": "Sierra larkspur",
+                "bloom": "Jun–Jul",
+                "isHost": false
+            },
+            {
+                "scientificName": "Dichelostemma capitatum",
+                "commonName": "Bluedicks",
+                "bloom": "Apr–May",
+                "isHost": false
+            },
+            {
+                "scientificName": "Ericameria nauseosa",
+                "commonName": "Rubber rabbitbrush",
+                "bloom": "Aug–Nov",
+                "isHost": false
+            },
+            {
+                "scientificName": "Eriogonum umbellatum",
+                "commonName": "Sulphur-flower buckwheat",
+                "bloom": "Jun–Sep",
+                "isHost": false
+            },
+            {
+                "scientificName": "Helianthus annuus",
+                "commonName": "Common sunflower",
+                "bloom": "Jul–Sep",
+                "isHost": false
+            },
+            {
+                "scientificName": "Monardella odoratissima",
+                "commonName": "Mountain monardella",
+                "bloom": "Jul–Aug",
+                "isHost": false
+            },
+            {
+                "scientificName": "Penstemon procerus",
+                "commonName": "Littleflower penstemon",
+                "bloom": "Jun–Jul",
+                "isHost": false
+            },
+            {
+                "scientificName": "Philadelphus lewisii",
+                "commonName": "Lewis' mock orange",
+                "bloom": "May–Jun",
+                "isHost": false
+            },
+            {
+                "scientificName": "Rudbeckia occidentalis",
+                "commonName": "Western coneflower",
+                "bloom": "Jul–Sep",
+                "isHost": false
+            },
+            {
+                "scientificName": "Solidago canadensis var. salebrosa",
+                "commonName": "Rough Canada goldenrod",
+                "bloom": "Aug–Oct",
+                "isHost": false
+            },
+            {
+                "scientificName": "Symphyotrichum chilense",
+                "commonName": "Pacific aster",
+                "bloom": "Sep–Nov",
+                "isHost": false
+            },
+            {
+                "scientificName": "Symphyotrichum hendersonii",
+                "commonName": "Lyall aster",
+                "bloom": "Aug–Oct",
+                "isHost": false
+            },
+            {
+                "scientificName": "Verbena lasiostachys",
+                "commonName": "Western vervain",
+                "bloom": "May–Oct",
+                "isHost": false
+            },
+            {
+                "scientificName": "Wyethia angustifolia",
+                "commonName": "California compassplant",
+                "bloom": "May–Jul",
+                "isHost": false
+            }
+        ]
+    }
+]
