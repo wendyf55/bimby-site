@@ -1,3 +1,12 @@
-data/
+# Data is local by default (some of it, like the Shepard & Guppy records, isn't ours to publish).
+data/*
+# ...except what the weekly iNaturalist job needs and updates:
+!data/ecoregions.geojson
+!data/species-info.json
+!data/observations-inat.json
+!data/inat/
 
 Occurrence_data-subset.numbers
+.DS_Store
+*.tmp
+__pycache__/

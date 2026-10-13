@@ -23,6 +23,8 @@
       --accent: #e79a3c;
       --accent-ink: #2b1d06;
       --link: #8a4a0c;
+      --inat: #3f7cac;
+      /* iNaturalist dots on the map */
 
       --bg: #fbfaf6;
       --ink: #1f261b;
@@ -308,6 +310,29 @@
       color: var(--ink);
     }
 
+    /* Which data sources to show */
+    .src-pick {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 10px;
+      margin: 0 0 12px;
+      font-size: 13px;
+      color: var(--dim);
+    }
+
+    .src-pick .seg {
+      margin-bottom: 0;
+    }
+
+    .src-pick .seg button {
+      padding: 5px 12px;
+    }
+
+    .src-pick small {
+      font-size: 12px;
+    }
+
     /* Place + summary */
     .place {
       display: flex;
@@ -507,7 +532,8 @@
       left: 0;
       width: min(580px, 94%);
       background: var(--bg);
-      z-index: 1100;   /* above Leaflet's controls (1000) */
+      z-index: 1100;
+      /* above Leaflet's controls (1000) */
       display: flex;
       flex-direction: column;
       box-shadow: 6px 0 22px rgba(0, 0, 0, 0.2);
@@ -971,6 +997,16 @@
       border: 1px solid #fff;
     }
 
+    .map-banner .dot.inat {
+      background: var(--inat);
+    }
+
+    .map-banner .key {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
     .map-banner button {
       background: rgba(255, 255, 255, 0.16);
       color: inherit;
@@ -1100,6 +1136,14 @@
       bars: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg>',
     };
 
+    // ---------- Data sources (one file each, built by scripts/build_*.py) ----------
+    const SOURCES = [
+      { key: 'sg', file: 'data/observations-sg.json', label: 'Shepard & Guppy', short: 'S&G' },
+      { key: 'inat', file: 'data/observations-inat.json', label: 'iNaturalist', short: 'iNat' },
+    ];
+    const NEAR_MIN_KM_OBSCURED = 30;   // obscured iNat locations (blurred ~20 km) only count from this distance up
+    let allObs = [], loaded = [], srcMeta = {};                // loaded = keys of sources that loaded
+
     // ---------- State ----------
     let observations = [], plantIndex = {}, regions = [], allYears = [];
     const state = {
@@ -1111,6 +1155,7 @@
       matches: null, message: '', showEcoInfo: false,
       trends: null,                                           // 'near' | 'region' when the trends drawer is open
       secOpen: { months: true, years: true },                 // collapsible sections in a butterfly's detail
+      sources: null,                                          // keys of sources shown (null = all loaded)
     };
     let YEARS = [];                                           // every year from first to last record (no gaps)
     let scopeCache = null;
@@ -1168,28 +1213,66 @@
     map.on('click', e => setPoint(e.latlng, null, true));
 
     // ---------- Load data ----------
+    // A source that fails to load is simply left out (e.g. a copy of the site without it).
+    const loadSource = src => fetch(src.file).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(d => ({ src, d }), err => { console.warn(`${src.label} data not loaded`, err); return null; });
     Promise.all([
-      fetch('data/observations.json').then(r => r.json()),
+      Promise.all(SOURCES.map(loadSource)),
       fetch('data/plant-lists.json').then(r => r.json()),
       fetch('data/ecoregions.geojson').then(r => r.json()),
-      fetch('data/observation-ecoregions.json').then(r => r.json()),
       SpeciesInfo.load(),
-    ]).then(([obs, lists, geo, obsRegion]) => {
-      observations = obs;
-      for (const o of observations) {
-        o._region = obsRegion[o.id] ?? null;
-        o._year = (o.observedOn || '').slice(0, 4);
-        o._month = +(o.observedOn || '').slice(5, 7) - 1;
+    ]).then(([sources, lists, geo]) => {
+      for (const s of sources.filter(Boolean)) {
+        const { src, d } = s, f = Object.fromEntries(d.fields.map((k, i) => [k, i]));
+        srcMeta[src.key] = { asOf: d.asOf || d.built, count: d.rows.length };
+        loaded.push(src.key);
+        for (const r of d.rows) {
+          const [sci, common] = d.species[r[f.sp]], date = r[f.date];
+          allObs.push({
+            id: `${src.key}-${r[f.id]}`, rid: r[f.id], source: src.key, scientificName: sci, commonName: common,
+            lat: r[f.lat], lng: r[f.lng], observedOn: date, obscured: !!(r[f.flags] & 1),
+            _region: r[f.region], _year: date.slice(0, 4), _month: +date.slice(5, 7) - 1,
+          });
+        }
       }
+      if (!allObs.length) throw new Error('no observation data');
       for (const l of lists) (plantIndex[l.butterfly.scientificName] ??= []).push(l);
       regions = geo.features.map(f => ({ f, bbox: bboxOf(f.geometry) }));
-      allYears = [...new Set(observations.map(o => o._year).filter(Boolean))].sort();
-      for (let y = +allYears[0]; y <= +allYears[allYears.length - 1]; y++) YEARS.push(String(y));
+      applySources();
       if (!restoreFromHash()) render();
     }).catch(err => {
       document.getElementById('content').innerHTML = '<p class="empty">Sorry, the butterfly data could not be loaded.</p>';
       console.error(err);
     });
+
+    // ---------- Which sources are shown ----------
+    const activeSources = () => state.sources ? loaded.filter(k => state.sources.includes(k)) : loaded;
+    const srcInfo = key => SOURCES.find(s => s.key === key);
+    function applySources() {
+      const on = new Set(activeSources());
+      observations = on.size === loaded.length ? allObs : allObs.filter(o => on.has(o.source));
+      allYears = [...new Set(observations.map(o => o._year).filter(Boolean))].sort();
+      YEARS = [];
+      for (let y = +allYears[0]; y <= +allYears[allYears.length - 1]; y++) YEARS.push(String(y));
+      if (state.year && !allYears.includes(state.year)) state.year = '';
+      scopeCache = null;
+    }
+    function setSources(key) {
+      state.sources = key === 'all' ? null : [key];
+      state.open = null;
+      applySources(); render(); drawSpeciesDots(false);
+    }
+    function sourceHTML() {
+      if (loaded.length < 2) return '';
+      const cur = state.sources ? state.sources[0] : 'all';
+      const btn = (k, label) => `<button type="button" data-src="${k}" aria-pressed="${cur === k}">${label}</button>`;
+      return `<div class="src-pick"><span>Data:</span>
+        <div class="seg" role="group" aria-label="Data source">${btn('all', 'Both')}${loaded.map(k => btn(k, esc(srcInfo(k).label))).join('')}</div>
+        ${loaded.includes('inat') && (!state.sources || state.sources.includes('inat')) && srcMeta.inat.asOf
+          ? `<small>iNaturalist updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}</small>` : ''}</div>`;
+    }
+    // Obscured iNat locations are blurred by ~20 km, so they don't belong in small "near you" circles.
+    const nearOK = o => !o.obscured || state.radiusKm >= NEAR_MIN_KM_OBSCURED;
 
     // ---------- Which ecoregion is a point in? (ray casting on the outlines) ----------
     function bboxOf(g) {
@@ -1318,14 +1401,14 @@
         const r = state.radiusKm * 1000, p = state.point;
         // quick box check first, then exact distance
         const dLat = state.radiusKm / 111, dLng = dLat / Math.max(0.2, Math.cos(p.lat * Math.PI / 180));
-        obs = observations.filter(o => inYear(o) && Math.abs(o.lat - p.lat) <= dLat && Math.abs(o.lng - p.lng) <= dLng
+        obs = observations.filter(o => inYear(o) && nearOK(o) && Math.abs(o.lat - p.lat) <= dLat && Math.abs(o.lng - p.lng) <= dLng
           && map.distance(p, [o.lat, o.lng]) <= r);
       }
       const species = new Map();
       for (const o of obs) {
         let s = species.get(o.scientificName);
-        if (!s) species.set(o.scientificName, s = { sci: o.scientificName, common: o.commonName, count: 0, months: new Array(12).fill(0), first: o.observedOn, last: o.observedOn });
-        s.count++; s.months[o._month]++;
+        if (!s) species.set(o.scientificName, s = { sci: o.scientificName, common: o.commonName, count: 0, bySrc: {}, months: new Array(12).fill(0), first: o.observedOn, last: o.observedOn });
+        s.count++; s.months[o._month]++; s.bySrc[o.source] = (s.bySrc[o.source] || 0) + 1;
         if (o.observedOn < s.first) s.first = o.observedOn;
         if (o.observedOn > s.last) s.last = o.observedOn;
       }
@@ -1339,7 +1422,7 @@
       }
       const r = state.radiusKm * 1000, p = state.point;
       const dLat = state.radiusKm / 111, dLng = dLat / Math.max(0.2, Math.cos(p.lat * Math.PI / 180));
-      return observations.filter(o => Math.abs(o.lat - p.lat) <= dLat && Math.abs(o.lng - p.lng) <= dLng
+      return observations.filter(o => nearOK(o) && Math.abs(o.lat - p.lat) <= dLat && Math.abs(o.lng - p.lng) <= dLng
         && map.distance(p, [o.lat, o.lng]) <= r);
     }
     function yearly(obs) {
@@ -1404,8 +1487,9 @@
         <div class="or">or</div>
         <button class="btn secondary full" type="button" id="locateBtn">${ICON.locate}<span>Use my location</span></button>
         <p class="hint">You can also click anywhere on the map.</p>
-        ${total ? `<p class="canada">The map holds <b>${fmt(total)}</b> records of <b>${sp}</b> butterfly species from British Columbia (Shepard &amp; Guppy, 2001).
-          Seen a butterfly? <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">Join the BIMBY project on iNaturalist</a>.</p>` : ''}`;
+        ${total ? `<div class="canada">${sourceHTML()}<p style="margin:0">The map holds <b>${fmt(total)}</b> records of <b>${sp}</b> butterfly species from British Columbia
+          (${activeSources().map(k => k === 'sg' ? 'Shepard &amp; Guppy, 2001' : 'iNaturalist observers').join(' and ')}).
+          Seen a butterfly? <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">Join the BIMBY project on iNaturalist</a>.</p></div>` : ''}`;
     }
 
     function resultsHTML() {
@@ -1417,6 +1501,7 @@
           ${ICON.pin}<span class="name" id="placeName">${esc(state.place || 'Your spot')}</span>
           <button class="link-btn" type="button" id="changeBtn">Change</button>
         </div>
+        ${sourceHTML()}
         <div class="scope" role="group" aria-label="Show butterflies">
           <div class="tile" role="button" tabindex="0" data-scope="near" aria-pressed="${state.scope === 'near'}">
             <div class="k">Near you</div>
@@ -1469,6 +1554,11 @@
           <p>Butterfly records (1950&ndash;2025, British Columbia) come from the occurrence data compiled for
             Shepard, J., &amp; Guppy, C. (2001). <i>Butterflies of British Columbia: Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern Oregon, Northern Idaho, and Northwestern Montana</i>. UBC Press.
             A butterfly missing from the list may simply not have been recorded here yet.</p>
+          ${loaded.includes('inat') ? `<p>iNaturalist records are research-grade butterfly observations in British Columbia
+            (identifications agreed by the community), refreshed weekly${srcMeta.inat.asOf ? `; last updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}` : ''}.
+            Thanks to the iNaturalist observers who shared them. Subspecies are counted under their species, and a few split species are
+            grouped to match Shepard &amp; Guppy (e.g. iNaturalist's two Arctic Skippers count as one). Where an observer hid their exact location
+            (blurred by about 20 km), the sighting counts towards your ecoregion and the ${NEAR_MIN_KM_OBSCURED} km and ${RADII[RADII.length - 1]} km circles only.</p>` : ''}
           <p>Descriptions come from Wikipedia and photos from iNaturalist photographers (credited on each butterfly).
             Plant lists come from the Xerces Society. Ecoregions: Agriculture and Agri-Food Canada.</p>
         </details>`;
@@ -1502,7 +1592,8 @@
             <button class="close-btn" type="button" id="closeDetail">Close</button>
           </div>
           <div class="facts">
-            <span><b>${plural(s.count, 'sighting')}</b> ${where}</span>
+            <span><b>${plural(s.count, 'sighting')}</b> ${where}${activeSources().length > 1
+          ? ` <small>(${activeSources().map(k => `${fmt(s.bySrc[k] || 0)} ${srcInfo(k).short}`).join(', ')})</small>` : ''}</span>
             <span>Most seen in <b>${MONTHS_LONG[peak]}</b></span>
             <span>Last seen <b>${fmtDate(s.last)}</b></span>
           </div>
@@ -1523,7 +1614,7 @@
           </div>
           ${!list ? `<p class="note">We don’t have a plant list for this butterfly yet.</p>` : `
             ${lists.length > 1 ? `<select class="list-select" id="listSel" aria-label="Plant list">${lists.map(l =>
-        `<option value="${esc(l.id)}" ${l === list ? 'selected' : ''}>${esc(l.region)} — ${esc(shortSource(l.source.org))} (${l.source.year})</option>`).join('')}</select>`
+            `<option value="${esc(l.id)}" ${l === list ? 'selected' : ''}>${esc(l.region)} — ${esc(shortSource(l.source.org))} (${l.source.year})</option>`).join('')}</select>`
             : `<p class="note" style="margin-bottom:6px">List for: ${esc(list.region)}</p>`}
             ${plants.length ? `<ul class="plants">${plants.map(p => `<li><span>${esc(p.commonName)} <i>${esc(p.scientificName)}</i></span>${p.bloom ? `<span class="bloom">Blooms ${esc(p.bloom)}</span>` : ''}</li>`).join('')}</ul>`
             : `<p class="note">None listed as ${state.plantCat === 'host' ? 'host' : 'nectar'} plants in this list.</p>`}
@@ -1715,7 +1806,8 @@
         const sci = state.open; state.open = null; render();
         box.querySelector(`.card[data-sci="${CSS.escape(sci)}"]`)?.focus();
       });
-      box.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { state.plantCat = b.dataset.cat; render(); }));
+      box.querySelectorAll('.seg button[data-cat]').forEach(b => b.addEventListener('click', () => { state.plantCat = b.dataset.cat; render(); }));
+      box.querySelectorAll('[data-src]').forEach(b => b.addEventListener('click', () => setSources(b.dataset.src)));
       on('#listSel', 'change', e => { state.listId = e.target.value; render(); });
       on('#mapBtn', 'click', () => showSpeciesOnMap(state.mapped === state.open ? null : state.open));
     }
@@ -1731,13 +1823,22 @@
       if (!state.mapped) { banner.remove(); return; }
       const pts = observations.filter(o => o.scientificName === state.mapped && (!state.year || o._year === state.year));
       const name = pts[0]?.commonName || state.mapped;
-      dotLayer = L.layerGroup(pts.map(o => L.circleMarker([o.lat, o.lng], {
-        renderer: dotRenderer, radius: 4, weight: 1, color: '#ffffff', fillColor: '#e79a3c', fillOpacity: 0.9,
-      }).bindTooltip(`${esc(name)} · ${fmtDate(o.observedOn)}`))).addTo(map);
+      dotLayer = L.layerGroup(pts.map(o => {
+        const m = L.circleMarker([o.lat, o.lng], {
+          renderer: dotRenderer, radius: 4, weight: 1, color: '#ffffff', fillColor: o.source === 'inat' ? '#3f7cac' : '#e79a3c', fillOpacity: 0.9,
+          bubblingMouseEvents: o.source !== 'inat',   // iNat dots open a popup instead of moving your spot
+        }).bindTooltip(`${esc(name)} · ${fmtDate(o.observedOn)} · ${srcInfo(o.source).short}`);
+        if (o.source === 'inat') m.bindPopup(`${esc(name)}<br>${fmtDate(o.observedOn)}${o.obscured ? ' <small>(location blurred)</small>' : ''}<br>
+          <a href="https://www.inaturalist.org/observations/${o.rid}" target="_blank" rel="noopener">View on iNaturalist</a>`);
+        return m;
+      })).addTo(map);
       if (zoom && pts.length) map.fitBounds(L.latLngBounds(pts.map(o => [o.lat, o.lng])), { padding: [30, 30], maxZoom: 9 });
       if (!banner.getContainer() || !banner.getContainer().parentNode) banner.addTo(map);
       const d = banner.getContainer();
-      d.innerHTML = `<span class="dot"></span><span>Showing <b>${esc(name)}</b> · ${plural(pts.length, 'sighting')}</span><button type="button">Clear</button>`;
+      const srcs = activeSources(), n = k => pts.filter(o => o.source === k).length;
+      d.innerHTML = srcs.length > 1
+        ? `<span>Showing <b>${esc(name)}</b>:</span>${srcs.map(k => `<span class="key"><span class="dot ${k}"></span>${fmt(n(k))} ${srcInfo(k).short}</span>`).join('')}<button type="button">Clear</button>`
+        : `<span class="dot ${srcs[0]}"></span><span>Showing <b>${esc(name)}</b> · ${plural(pts.length, 'sighting')}</span><button type="button">Clear</button>`;
       d.querySelector('button').addEventListener('click', () => showSpeciesOnMap(null));
     }
 
@@ -1749,11 +1850,14 @@
         if (state.radiusKm !== 15) parts.push(`r=${state.radiusKm}`);
         if (state.scope === 'region') parts.push('view=region');
       }
+      if (state.sources) parts.push(`src=${state.sources.join(',')}`);
       const s = parts.join('&');
       history.replaceState(null, '', location.pathname + location.search + (s ? '#' + s : ''));
     }
     function restoreFromHash() {
       const h = new URLSearchParams(location.hash.slice(1));
+      const src = (h.get('src') || '').split(',').filter(k => loaded.includes(k));
+      if (src.length && src.length < loaded.length) { state.sources = src; applySources(); }
       const at = (h.get('at') || '').split(',').map(Number);
       if (at.length !== 2 || at.some(isNaN)) return false;
       if (RADII.includes(+h.get('r'))) state.radiusKm = +h.get('r');

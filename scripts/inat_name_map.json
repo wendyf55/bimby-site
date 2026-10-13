@@ -1,0 +1,12 @@
+{
+  "_about": "iNaturalist name -> name used on the site. Subspecies are rolled up to their species automatically before this map is applied. These entries merge iNaturalist's split taxa into the lumped taxa used by Shepard & Guppy, so one butterfly isn't listed twice.",
+  "Carterocephalus mandan": "Carterocephalus mandan-skada",
+  "Carterocephalus skada": "Carterocephalus mandan-skada",
+  "Carterocephalus palaemon": "Carterocephalus mandan-skada",
+  "Celastrina echo": "Celastrina echo-asheri",
+  "Celastrina asheri": "Celastrina echo-asheri",
+  "Cupido amyntula": "Cupido amyntula-comyntas",
+  "Cupido comyntas": "Cupido amyntula-comyntas",
+  "Everes amyntula": "Cupido amyntula-comyntas",
+  "Everes comyntas": "Cupido amyntula-comyntas"
+}

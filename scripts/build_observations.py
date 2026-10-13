@@ -1,5 +1,6 @@
 """
-Build data/observations.json from the butterfly occurrence dataset.
+Build data/observations-sg.json (the Shepard & Guppy source) from the occurrence dataset.
+The file format is described in scripts/bimby_data.py; ecoregions are tagged here.
 
 Current source (switched in 2026-10-05):
     Occurrence records compiled for
@@ -9,8 +10,7 @@ Current source (switched in 2026-10-05):
     File: data/occurrence_data_subset.csv (exported from Occurrence_data-subset.numbers)
     Columns: (row number), Species_binomial, Latitude, Longitude, Date (YYYY-MM-DD)
 
-The previous iNaturalist BIMBY export is kept in data/observations-782254.csv/ and
-the old build output in data/observations-inat-2026-09.json.
+iNaturalist records are a separate source: scripts/fetch_inat.py + scripts/build_inat.py.
 
 Usage (from the repo root):
     python3 scripts/build_observations.py
@@ -18,13 +18,16 @@ Usage (from the repo root):
 To re-export the CSV from the Numbers file (needs `pip install numbers-parser`):
     python3 scripts/build_observations.py --from-numbers Occurrence_data-subset.numbers
 
-After rebuilding, re-run scripts/build_ecoregions.py (ecoregion lookup) and
-scripts/build_species_info.py (descriptions/photos for any new species).
+Needs shapely >= 2 (pip install shapely). Afterwards run scripts/build_species_info.py
+to fetch descriptions/photos for any new species.
 """
 import csv, json, os, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import bimby_data
+
 SRC = "data/occurrence_data_subset.csv"
-OUT = "data/observations.json"
+OUT = "data/observations-sg.json"
 SPECIES_INFO = "data/species-info.json"
 OLD_INAT = "data/observations-inat-2026-09.json"
 
@@ -54,11 +57,7 @@ def known_common_names():
         for o in json.load(open(OLD_INAT, encoding="utf-8")):
             if o.get("commonName"):
                 names.setdefault(o["scientificName"], o["commonName"])
-    if os.path.exists(SPECIES_INFO):
-        for sci, e in json.load(open(SPECIES_INFO, encoding="utf-8")).get("species", {}).items():
-            if e.get("commonName"):
-                names[sci] = e["commonName"]
-    names.update(COMMON_NAMES)
+    names.update(bimby_data.known_common_names(COMMON_NAMES))
     return names
 
 
@@ -81,16 +80,14 @@ def main():
                 no_name.add(sci)
             rows.append({
                 "id": i,                                   # row number in the source file
-                "scientificName": sci,
-                "commonName": common,
-                "lat": round(float(lat), 4),   # ~10 m; source is coarser anyway
-                "lng": round(float(lng), 4),
-                "observedOn": (r.get("Date") or "").strip()[:10],
+                "sci": sci,
+                "common": common,
+                "lat": float(lat),
+                "lng": float(lng),
+                "date": (r.get("Date") or "").strip()[:10],
             })
-    with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(rows, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"Wrote {len(rows)} records, {len({r['scientificName'] for r in rows})} species "
-          f"-> {OUT} ({os.path.getsize(OUT)//1024} KB); skipped {skipped}")
+    bimby_data.write_source(OUT, "sg", "Shepard & Guppy", rows)
+    print(f"Skipped {skipped} rows missing a name or coordinates")
     if no_name:
         print("No common name for:", ", ".join(sorted(no_name)))
 

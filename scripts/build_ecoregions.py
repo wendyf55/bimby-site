@@ -8,8 +8,9 @@ https://sis.agr.gc.ca/cansis/nsdb/ecostrat/gis_data.html):
     data/observations.json       built by scripts/build_observations.py
 
 Outputs:
-    data/ecoregions.geojson             simplified ecoregion outlines for the map
-    data/observation-ecoregions.json    {observation id: ecoregion id}
+    data/ecoregions.geojson             simplified ecoregion outlines for the map; the
+                                        source builders tag each record's ecoregion
+                                        with these (scripts/bimby_data.py)
     data/ecozones.geojson               ecozone outlines (merged from the simplified
                                         ecoregions); not used by any page right now
 
@@ -25,19 +26,15 @@ import zipfile
 
 import shapefile                      # pyshp
 import shapely
-from shapely.geometry import shape, mapping, Point
+from shapely.geometry import shape, mapping
 from shapely.ops import unary_union
-from shapely.strtree import STRtree
 
 RAW = "data/raw"
-OBS = "data/observations.json"
 OUT_GEO = "data/ecoregions.geojson"
-OUT_OBS = "data/observation-ecoregions.json"
 OUT_ZONES = "data/ecozones.geojson"
 
 SIMPLIFY_DEG = 0.02      # coverage-simplify tolerance (~2 km); shared borders stay shared
 DECIMALS = 3             # coordinate rounding in the output (~100 m)
-NEAREST_MAX_DEG = 0.05   # points just offshore/on the coast snap to a region within ~5 km
 
 # Tidy a few inconsistent names in the 2003 ecozone attribute table
 ZONE_NAME_FIXES = {"Boreal PLain": "Boreal Plain", "MixedWood Plain": "Mixedwood Plain"}
@@ -70,24 +67,6 @@ def main():
     full = [unary_union(parts[i]) for i in ids]
     print(f"{len(ids)} ecoregions across {len(zone_names)} ecozones")
 
-    # --- Tag each observation with its ecoregion (using full-detail outlines) ---
-    obs = json.load(open(OBS))
-    tree = STRtree(full)
-    assign, snapped, outside = {}, 0, 0
-    for o in obs:
-        pt = Point(o["lng"], o["lat"])
-        hit = tree.query(pt, predicate="intersects")
-        if len(hit):
-            assign[o["id"]] = ids[hit[0]]
-            continue
-        near = tree.query_nearest(pt, max_distance=NEAREST_MAX_DEG)
-        if len(near):
-            assign[o["id"]] = ids[near[0]]; snapped += 1
-        else:
-            outside += 1
-    print(f"{len(assign)}/{len(obs)} observations tagged "
-          f"({snapped} snapped from the coast, {outside} outside Canada's ecoregions)")
-
     # --- Simplify outlines for the web, keeping neighbouring borders identical ---
     simple = shapely.coverage_simplify(full, SIMPLIFY_DEG)
     features, zone_parts = [], {}
@@ -109,13 +88,12 @@ def main():
 
     with open(OUT_GEO, "w") as f:
         json.dump({"type": "FeatureCollection", "features": features}, f, separators=(",", ":"))
-    with open(OUT_OBS, "w") as f:
-        json.dump(assign, f, separators=(",", ":"))
     with open(OUT_ZONES, "w") as f:
         json.dump({"type": "FeatureCollection", "features": zone_features}, f, separators=(",", ":"))
     print(f"Wrote {OUT_ZONES} ({os.path.getsize(OUT_ZONES)//1024} KB)")
-    print(f"Wrote {OUT_GEO} ({os.path.getsize(OUT_GEO)//1024} KB), "
-          f"{OUT_OBS} ({os.path.getsize(OUT_OBS)//1024} KB)")
+    print(f"Wrote {OUT_GEO} ({os.path.getsize(OUT_GEO)//1024} KB)")
+    print("If the outlines changed, rebuild the sources so records are re-tagged:\n"
+          "    python3 scripts/build_observations.py && python3 scripts/build_inat.py")
 
 
 if __name__ == "__main__":

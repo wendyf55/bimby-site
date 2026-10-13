@@ -1,6 +1,6 @@
 """
 Build data/species-info.json: a short description and a photo for every butterfly
-in data/observations.json. Used by all the map pages (index + options A/B/C).
+in the data/observations-*.json source files. Used by index.html.
 
 Sources
     Description  Wikipedia — the first paragraph of the species' article
@@ -42,7 +42,9 @@ import urllib.parse
 import urllib.request
 from datetime import date
 
-OBS = "data/observations.json"
+import glob
+
+OBS_GLOB = "data/observations-*.json"   # one file per data source (see bimby_data.py)
 OUT = "data/species-info.json"
 OVERRIDES = "data/species-info-overrides.json"
 
@@ -222,10 +224,15 @@ def build_one(sci, common, override):
 
 def main():
     refresh = "--refresh" in sys.argv
-    obs = json.load(open(OBS))
     species = {}
-    for o in obs:
-        species.setdefault(o["scientificName"], o.get("commonName") or "")
+    for path in sorted(glob.glob(OBS_GLOB)):
+        try:
+            src = json.load(open(path, encoding="utf-8"))
+        except (ValueError, KeyError):
+            continue                     # not a source file
+        for sci, common in src.get("species", []):
+            if common or sci not in species:
+                species[sci] = common
 
     info = {}
     if os.path.exists(OUT) and not refresh:
@@ -264,7 +271,9 @@ def save(info, species):
             "descriptions": "Wikipedia (CC BY-SA 4.0), first paragraph of each article",
             "photos": "iNaturalist taxon photos (licence per photo); Wikimedia Commons fallback",
         },
-        "species": {s: info[s] for s in sorted(info) if s in species},
+        # Keep every species already in the file: the weekly iNaturalist job only
+        # has the iNat source, so dropping "unused" species would lose the others.
+        "species": {s: info[s] for s in sorted(info)},
     }
     with open(OUT, "w") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
