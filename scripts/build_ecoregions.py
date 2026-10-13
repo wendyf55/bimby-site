@@ -1,5 +1,5 @@
 """
-Build the ecoregion data used by option-a.html and option-b.html.
+Build the ecoregion data used by index.html.
 
 Inputs (downloaded manually from AAFC's National Ecological Framework for Canada,
 https://sis.agr.gc.ca/cansis/nsdb/ecostrat/gis_data.html):

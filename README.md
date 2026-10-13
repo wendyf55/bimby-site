@@ -13,13 +13,8 @@ Then open <http://localhost:8000>
 
 ## Repository structure
 
-    index.html                     The whole app (map + interaction)
-    option-a.html                  Design option A: browse by ecoregion
-    option-b.html                  Design option B: ecoregion atlas (popup with species
-                                   list, year charts, flight season, compare regions)
-    option-c.html                  Design option C: "Your backyard" (location-first, photo cards)
-    dev-switcher.js                Dev-mode option switcher (open any page with ?dev)
-    species-info.js                Species photos + descriptions, shared by all pages
+    index.html                     The whole app: "Your backyard" (location-first map, photo cards)
+    species-info.js                Species photos + descriptions
     data/                          (git-ignored)
       observations.json            Butterfly occurrence records used by the app (generated)
       occurrence_data_subset.csv   Shepard & Guppy occurrence data (CSV export of the .numbers file)
@@ -64,7 +59,7 @@ Then open <http://localhost:8000>
   The Xerces Society for Invertebrate Conservation. Publication 18-003_02.
 - **URL:** <https://xerces.org/sites/default/files/publications/18-003_02_Monarch-Nectar-Plant-Lists-FS_web%20-%20Jessa%20Kay%20Cruz.pdf>
 
-### Ecoregions — National Ecological Framework for Canada (used by option-a.html and option-b.html)
+### Ecoregions — National Ecological Framework for Canada
 
 - **Source:** Agriculture and Agri-Food Canada, *A National Ecological Framework for
   Canada* — ecoregion and ecozone shapefiles, from
@@ -97,35 +92,14 @@ Then open <http://localhost:8000>
   fetches species that are new; `--refresh` re-fetches everything. Wrong or missing
   matches can be fixed by hand in `data/species-info-overrides.json` (see the script's
   header). Pages work without the file — they just show no photos/descriptions.
-- **On the pages:** a small photo next to each butterfly in the lists, and the photo +
+- **On the page:** a small photo next to each butterfly in the lists, and the photo +
   description at the top of each butterfly's detail view.
 
-## Option B — ecoregion atlas
+## How the app works
 
-Modelled on the [Ontario Butterfly Atlas](https://www.ontarioinsects.org/atlas/).
-Click an ecoregion to open a popup with:
-
-- **Species list** — search; sort by most seen, rarest, A–Z or earliest in the year;
-  first/last sighting dates. Click a species for its monthly sightings plus host &
-  nectar plants.
-- **Overview** — sightings by year and species by year (one bar per year; new years
-  appear automatically as data is added), plus the top 5 species.
-- **Flight season** — sightings per 10-day period with earliest / 10% / median / 90% /
-  latest dates.
-- **Compare regions** — ranking against the other ecoregions in the same ecozone.
-
-In a species' detail view (Options A and B), **Show where it's been seen** recolours the
-map by that species' sightings per ecoregion and zooms to where it has been recorded.
-On the radius map (index.html) the same button plots every sighting of the species as a
-dot (canvas layer, so thousands of points stay fast), filtered by the time period.
-
-The sidebar colours the map by species or sightings, can map a single species, and
-filters by year. The popup footer downloads the species list as CSV and copies a link;
-the open region, tab and year are kept in the URL (e.g. `option-b.html#region=209&tab=season`).
-
-## Option C — "Your backyard"
-
-A location-first version for the public, mixing the radius map with ecoregions:
+A location-first map for the public, combining a radius search with ecoregions.
+(The earlier design options A and B and the radius map are in the git tag
+`last-with-options`.)
 
 - **Start:** one question, "Where is your backyard?" — search a town or postal code
   (OpenStreetMap's Nominatim geocoder, limited to Canada; light use only, searches run
@@ -139,7 +113,7 @@ A location-first version for the public, mixing the radius map with ecoregions:
   in place with the photo and description, a month-by-month chart, host (caterpillar) and
   nectar (adult) plants, and "Show where it's been seen" (dots on the map).
 - Clicking the map reverse-geocodes a place name. The spot, distance and view are kept in
-  the URL (e.g. `option-c.html#at=43.6535,-79.3839&r=30&view=region`).
+  the URL (e.g. `index.html#at=43.6535,-79.3839&r=30&view=region`).
 - On narrow screens the map sits on top and the results scroll below it.
 
 ## `plant-lists.json` structure
