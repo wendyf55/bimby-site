@@ -888,7 +888,8 @@ function drawSpeciesDots(zoom) {
 function updateHash() {
   const parts = [];
   if (state.point) {
-    parts.push(`at=${state.point.lat.toFixed(4)},${state.point.lng.toFixed(4)}`);
+    // ~100 m: close enough to show the same results, without pinpointing someone's house
+    parts.push(`at=${state.point.lat.toFixed(3)},${state.point.lng.toFixed(3)}`);
     if (state.radiusKm !== 15) parts.push(`r=${state.radiusKm}`);
     if (state.scope === 'region') parts.push('view=region');
     if (state.year) parts.push(`year=${state.year}`);
