@@ -6,6 +6,10 @@ into data/observations-inat.json for the page.
 What it asks for
     taxon_id=47224 (Papilionoidea, butterflies), place_id=7085 (British Columbia),
     quality_grade=research. Public coordinates only (obscured records are flagged).
+    license=cc0,cc-by,cc-by-nc: only observations their observers licensed for
+    reuse (the same three licences GBIF accepts). "All rights reserved" and
+    NoDerivs / ShareAlike observations are not downloaded. Each record keeps its
+    licence code so the build can report the mix.
 
 How it pages (iNaturalist API recommended practices,
 https://www.inaturalist.org/pages/api+recommended+practices)
@@ -22,6 +26,8 @@ Modes
                 deleted observations and ones that are no longer research grade
                 or no longer butterflies (incremental runs can't see those).
     --max-pages N   Stop after N requests (for testing).
+    If QUERY changes (e.g. the licence filter), the next run is automatically a
+    full pull, and the "< 80% of the cache" safety check is skipped for it.
 
 Nothing is written unless the run finishes. A full pull that returns far fewer
 records than the cache already has (< 80%) is treated as an error and not saved.
@@ -39,8 +45,12 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 API = os.environ.get("INAT_API", "https://api.inaturalist.org/v1") + "/observations"
+LICENSES = ["cc0", "cc-by", "cc-by-nc"]   # reusable observation licences (as GBIF)
 QUERY = {"taxon_id": 47224, "place_id": 7085, "quality_grade": "research",
+         "license": ",".join(LICENSES),
          "order_by": "id", "order": "asc", "per_page": 200}
+QUERY_KEY = json.dumps({k: v for k, v in QUERY.items() if k not in ("order_by", "order", "per_page")},
+                       sort_keys=True)   # stored in state.json; a change forces a full pull
 USER_AGENT = "BIMBY-butterfly-map/1.0 (UBC Tseng Lab; https://github.com/wendyf55/bimby-site)"
 PAUSE = 1.0                         # seconds between requests (iNat asks for ~1/s)
 BACKOFF = [10, 30, 60, 120, 300]    # waits before each retry after 429 / 5xx / network error
@@ -90,7 +100,8 @@ def slim(o):
         or o.get("taxon_geoprivacy") == "obscured"
     return {"id": o["id"], "updated": o.get("updated_at"), "date": o.get("observed_on"),
             "name": t.get("name"), "rank": t.get("rank"), "common": t.get("preferred_common_name"),
-            "lat": lat, "lng": lng, "obscured": obscured, "acc": o.get("positional_accuracy")}
+            "lat": lat, "lng": lng, "obscured": obscured, "acc": o.get("positional_accuracy"),
+            "license": (o.get("license_code") or "").lower() or None}
 
 
 def walk(extra, max_pages=None):
@@ -144,7 +155,10 @@ def main():
     state = json.load(open(STATE)) if os.path.exists(STATE) else {}
     started = now_iso()
 
-    full = "--full" in args or not cache or not state.get("lastFull")
+    query_changed = bool(cache) and state.get("query") != QUERY_KEY
+    if query_changed:
+        print("The query has changed since the last pull (e.g. the licence filter); doing a full pull")
+    full = "--full" in args or not cache or not state.get("lastFull") or query_changed
     if not full:
         last_full = datetime.fromisoformat(state["lastFull"].replace("Z", "+00:00"))
         full = datetime.now(timezone.utc) - last_full > timedelta(days=FULL_EVERY_DAYS)
@@ -152,13 +166,15 @@ def main():
     if full:
         print("Full pull")
         fresh = {r["id"]: r for r in walk({}, max_pages)}
-        if cache and len(fresh) < MIN_FULL_RATIO * len(cache) and not max_pages:
+        if cache and len(fresh) < MIN_FULL_RATIO * len(cache) and not max_pages and not query_changed:
             sys.exit(f"Full pull returned {len(fresh)} records but the cache has {len(cache)}; "
                      "not saving. Check the query or try again later.")
         removed = len(set(cache) - set(fresh))
         added = len(set(fresh) - set(cache))
         cache = fresh
         state["lastFull"] = started
+        if not max_pages:
+            state["query"] = QUERY_KEY
         print(f"{added} new, {removed} no longer in the results")
     else:
         since = datetime.fromisoformat(state["lastRun"].replace("Z", "+00:00")) - timedelta(days=1)

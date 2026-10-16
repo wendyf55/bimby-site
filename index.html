@@ -1567,6 +1567,11 @@
             A butterfly missing from the list may simply not have been recorded here yet.</p>
           ${loaded.includes('inat') ? `<p>iNaturalist records are research-grade butterfly observations in British Columbia
             (identifications agreed by the community), refreshed weekly${srcMeta.inat.asOf ? `; last updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}` : ''}.
+            Observations are &copy; their observers, used under the licence each observer chose
+            (<a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener" style="color:var(--link)">CC0</a>,
+            <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:var(--link)">CC BY</a> or
+            <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener" style="color:var(--link)">CC BY-NC</a>;
+            records under other licences are not shown); each map dot links to its observation, with the observer's name and licence.
             Thanks to the iNaturalist observers who shared them. Subspecies are counted under their species, and a few split species are
             grouped to match Shepard &amp; Guppy (e.g. iNaturalist's two Arctic Skippers count as one). Where an observer hid their exact location
             (blurred by about 20 km), the sighting counts towards your ecoregion and the ${NEAR_MIN_KM_OBSCURED} km and ${RADII[RADII.length - 1]} km circles only.</p>` : ''}

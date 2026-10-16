@@ -12,6 +12,9 @@ Cleaning
     - Records with poor location accuracy (> 5 km) are left out, except obscured
       ones: those are kept and flagged, and the page leaves them out of the
       small "Near you" distances.
+    - Only observations licensed CC0, CC BY or CC BY-NC are used (fetch_inat.py
+      already asks for just those; this is a second check). The licence mix is
+      printed at the end.
 Common names come from data/species-info.json where it has one, otherwise from
 iNaturalist (the species-level name, not a subspecies name).
 
@@ -26,7 +29,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bimby_data
-from fetch_inat import CACHE, STATE, load_cache
+from fetch_inat import CACHE, LICENSES, STATE, load_cache
 
 OUT = "data/observations-inat.json"
 NAME_MAP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "inat_name_map.json")
@@ -39,13 +42,18 @@ def main():
     cache = load_cache()
     if not cache:
         sys.exit(f"No cache at {CACHE}; run scripts/fetch_inat.py first.")
+    if not any("license" in r for r in cache.values()):
+        sys.exit("The cache predates the licence filter (no licence codes); "
+                 "run scripts/fetch_inat.py first (it will do a full pull).")
     state = json.load(open(STATE)) if os.path.exists(STATE) else {}
     name_map = {k: v for k, v in json.load(open(NAME_MAP)).items() if not k.startswith("_")}
     site_names = bimby_data.known_common_names()
 
-    rows, dropped = [], collections.Counter()
+    rows, dropped, licenses = [], collections.Counter(), collections.Counter()
     inat_common = {}
     for r in cache.values():
+        if r.get("license") not in LICENSES:
+            dropped["not licensed for reuse (or licence unknown)"] += 1; continue
         name, rank = (r.get("name") or "").strip(), r.get("rank")
         if not name:
             dropped["no name"] += 1; continue
@@ -64,12 +72,14 @@ def main():
             dropped["no date"] += 1; continue
         if rank == "species" and r.get("common") and sci == name:
             inat_common.setdefault(sci, r["common"])
+        licenses[r["license"]] += 1
         rows.append({"id": r["id"], "sci": sci, "lat": r["lat"], "lng": r["lng"],
                      "date": r["date"], "obscured": r.get("obscured")})
     for row in rows:
         row["common"] = site_names.get(row["sci"]) or inat_common.get(row["sci"], "")
 
     bimby_data.write_source(OUT, "inat", "iNaturalist", rows, as_of=state.get("lastRun"))
+    print("Licences:", ", ".join(f"{k.upper()} {n}" for k, n in licenses.most_common()))
     print(f"Obscured locations (kept, flagged): {sum(1 for r in rows if r['obscured'])}")
     for why, n in dropped.most_common():
         print(f"Left out, {why}: {n}")

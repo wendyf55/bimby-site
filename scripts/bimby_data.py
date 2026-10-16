@@ -1,6 +1,5 @@
 """
-Shared helpers for the build scripts: ecoregion tagging and the compact per-source
-observation files the page loads.
+ecoregion tagging and the compact per-source observation files the page loads.
 
 Each source is written to its own file, data/observations-<source>.json:
 
@@ -14,7 +13,7 @@ Each source is written to its own file, data/observations-<source>.json:
 
 `sp` indexes into `species`; `region` is the ecoregion id (from data/ecoregions.geojson)
 or null; `flags` bit 1 = location obscured by the observer (blurred to ~20 km).
-Rows are written one per line, sorted by id, so weekly git diffs stay small.
+Rows are written one per line, sorted by id.
 """
 import json
 import os

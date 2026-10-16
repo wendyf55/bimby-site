@@ -44,7 +44,7 @@ jobs:
 
       - name: Descriptions and photos for any new species
         # Only fetches species not already in data/species-info.json.
-        # A hiccup here shouldn't block the data update; the next run retries.
+        #an issue here shouldn't block the data update; the next run retries.
         continue-on-error: true
         run: python scripts/build_species_info.py
 
