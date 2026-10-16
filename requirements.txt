@@ -2,8 +2,8 @@
 #     pip install -r requirements.txt
 # fetch_inat.py and build_species_info.py need only the standard library.
 
-shapely>=2.1          # ecoregion tagging (bimby_data.py), outlines (build_ecoregions.py, build_postal.py)
-numpy                 # comes with shapely; used directly by bimby_data.py and build_postal.py
+shapely>=2.1          # ecoregion tagging (source_files.py), outlines (build_ecoregions.py, build_postal.py)
+numpy                 # comes with shapely; used directly by source_files.py and build_postal.py
 pyshp>=2.3            # reads the shapefiles (build_ecoregions.py, build_postal.py)
 pyproj>=3.4           # reprojects the Statistics Canada boundaries (build_postal.py)
 

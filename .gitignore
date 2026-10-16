@@ -9,8 +9,10 @@ data/*
 !data/postal-fsa.json
 !data/observations-sg.json
 !data/species-info-overrides.json
-# ...but not an unfinished full pull (kept in the Actions cache between runs instead)
-data/inat/partial.jsonl
+# ...but in data/inat/ only state.json (when the last pull ran). The iNaturalist cache and an
+# unfinished full pull live in the GitHub Actions cache instead, so they don't bloat the repo.
+data/inat/*
+!data/inat/state.json
 
 Occurrence_data-subset.numbers
 .DS_Store

@@ -1,5 +1,6 @@
 """
-ecoregion tagging and the compact per-source observation files the page loads.
+Shared by the source builders (build_observations.py, build_inat.py): ecoregion tagging,
+common-name lookup, and writing the compact per-source observation files the page loads.
 
 Each source is written to its own file, data/observations-<source>.json:
 

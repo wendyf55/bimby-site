@@ -24,7 +24,7 @@ Then open <http://localhost:8000>
     species-info.js                Species photos + descriptions, shared by all pages
     data/                          (git-ignored)
       observations.json            Butterfly occurrence records used by the app (generated)
-      occurrence_data_subset.csv   Shepard & Guppy occurrence data (CSV export of the .numbers file)
+      occurrence_data_subset.csv   Guppy & Shepard occurrence data (CSV export of the .numbers file)
       observations-inat-2026-09.json  Previous app data from the iNat export (backup)
       plant-lists.json             Host/nectar plant lists, one entry per region/source
       observations-782254.csv/     Raw iNaturalist export (previous source, kept for provenance)
@@ -44,9 +44,9 @@ Then open <http://localhost:8000>
 
 ## Data sources
 
-### Butterfly occurrences — Shepard & Guppy (2001)
+### Butterfly occurrences — Guppy & Shepard (2001)
 
-- **Source:** Shepard, J., & Guppy, C. (2001). *Butterflies of British Columbia:
+- **Source:** Guppy, C., & Shepard, J. (2001). *Butterflies of British Columbia:
   Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington,
   Northern Oregon, Northern Idaho, and Northwestern Montana.* UBC Press.
 - **File:** `Occurrence_data-subset.numbers` (added 2026-10-05), exported to

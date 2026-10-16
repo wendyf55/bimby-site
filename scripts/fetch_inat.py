@@ -2,6 +2,8 @@
 Pull research-grade butterfly observations in British Columbia from iNaturalist
 into a local cache (data/inat/cache.jsonl). scripts/build_inat.py turns the cache
 into data/observations-inat.json for the page.
+The cache is not in git: the GitHub Actions workflow keeps it in the Actions cache
+(.github/workflows/update-inat.yml). Locally, a first run does a full pull.
 
 What it asks for
     taxon_id=47224 (Papilionoidea, butterflies), place_id=7085 (British Columbia),

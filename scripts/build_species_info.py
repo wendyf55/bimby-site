@@ -45,7 +45,7 @@ import urllib.parse
 import urllib.request
 from datetime import date
 
-OBS_GLOB = "data/observations-*.json"   # one file per data source (see bimby_data.py)
+OBS_GLOB = "data/observations-*.json"   # one file per data source (see source_files.py)
 OUT = "data/species-info.json"
 OVERRIDES = "data/species-info-overrides.json"
 

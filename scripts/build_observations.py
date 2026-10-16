@@ -1,10 +1,10 @@
 """
-Build data/observations-sg.json (the Shepard & Guppy source) from the occurrence dataset.
-The file format is described in scripts/bimby_data.py; ecoregions are tagged here.
+Build data/observations-sg.json (the Guppy & Shepard source) from the occurrence dataset.
+The file format is described in scripts/source_files.py; ecoregions are tagged here.
 
 Current source (switched in 2026-10-05):
     Occurrence records compiled for
-    Shepard, J., & Guppy, C. (2001). Butterflies of British Columbia: Including
+    Guppy, C., & Shepard, J. (2001). Butterflies of British Columbia: Including
     Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern
     Oregon, Northern Idaho, and Northwestern Montana. UBC Press.
     File: data/occurrence_data_subset.csv (exported from Occurrence_data-subset.numbers)
@@ -24,7 +24,7 @@ to fetch descriptions/photos for any new species.
 import csv, os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import bimby_data
+import source_files
 
 SRC = "data/occurrence_data_subset.csv"
 OUT = "data/observations-sg.json"
@@ -97,7 +97,7 @@ def export_numbers(path):
 
 def known_common_names():
     """COMMON_NAMES, with species-info.json filling in any species not listed."""
-    return bimby_data.known_common_names(COMMON_NAMES)
+    return source_files.known_common_names(COMMON_NAMES)
 
 
 def main():
@@ -125,7 +125,7 @@ def main():
                 "lng": float(lng),
                 "date": (r.get("Date") or "").strip()[:10],
             })
-    bimby_data.write_source(OUT, "sg", "Guppy & Shepard", rows)
+    source_files.write_source(OUT, "sg", "Guppy & Shepard", rows)
     print(f"Skipped {skipped} rows missing a name or coordinates")
     if no_name:
         print("No common name for:", ", ".join(sorted(no_name)))

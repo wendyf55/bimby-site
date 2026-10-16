@@ -10,7 +10,7 @@ https://sis.agr.gc.ca/cansis/nsdb/ecostrat/gis_data.html):
 Outputs:
     data/ecoregions.geojson             simplified ecoregion outlines for the map; the
                                         source builders tag each record's ecoregion
-                                        with these (scripts/bimby_data.py)
+                                        with these (scripts/source_files.py)
     data/ecozones.geojson               ecozone outlines (merged from the simplified
                                         ecoregions); not used by any page right now
 

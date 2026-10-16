@@ -1,12 +1,12 @@
 """
 Build data/observations-inat.json (the iNaturalist source) from the cache written
-by scripts/fetch_inat.py. File format: see scripts/bimby_data.py.
+by scripts/fetch_inat.py. File format: see scripts/source_files.py.
 
 Cleaning
     - Subspecies / varieties / forms are rolled up to their species
       (e.g. Vanessa atalanta rubria -> Vanessa atalanta), then
       scripts/inat_name_map.json merges iNaturalist's split taxa into the lumped
-      names Shepard & Guppy use (e.g. Celastrina echo -> Celastrina echo-asheri).
+      names Guppy & Shepard use (e.g. Celastrina echo -> Celastrina echo-asheri).
     - Records identified only above species (genus, complex...) and hybrids are left out,
       unless the name is in the name map.
     - Records with poor location accuracy (> 5 km) are left out, except obscured
@@ -28,7 +28,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import bimby_data
+import source_files
 from fetch_inat import CACHE, LICENSES, STATE, load_cache
 
 OUT = "data/observations-inat.json"
@@ -47,7 +47,7 @@ def main():
                  "run scripts/fetch_inat.py first (it will do a full pull).")
     state = json.load(open(STATE)) if os.path.exists(STATE) else {}
     name_map = {k: v for k, v in json.load(open(NAME_MAP)).items() if not k.startswith("_")}
-    site_names = bimby_data.known_common_names()
+    site_names = source_files.known_common_names()
 
     rows, dropped, licenses = [], collections.Counter(), collections.Counter()
     inat_common = {}
@@ -78,7 +78,7 @@ def main():
     for row in rows:
         row["common"] = site_names.get(row["sci"]) or inat_common.get(row["sci"], "")
 
-    bimby_data.write_source(OUT, "inat", "iNaturalist", rows, as_of=state.get("lastRun"))
+    source_files.write_source(OUT, "inat", "iNaturalist", rows, as_of=state.get("lastRun"))
     print("Licences:", ", ".join(f"{k.upper()} {n}" for k, n in licenses.most_common()))
     print(f"Obscured locations (kept, flagged): {sum(1 for r in rows if r['obscured'])}")
     for why, n in dropped.most_common():

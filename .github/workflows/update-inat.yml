@@ -1,8 +1,12 @@
 # Weekly refresh of the iNaturalist data (research-grade butterflies in BC).
 #
-# Runs every Monday, and on demand from the Actions tab ("Run workflow"; tick
-# "full" to force a complete re-pull). See scripts/fetch_inat.py for how it
+# Runs every Monday and Thursday, and on demand from the Actions tab ("Run workflow";
+# tick "full" to force a complete re-pull). See scripts/fetch_inat.py for how it
 # talks to iNaturalist. Commits only when the data actually changed.
+#
+# The raw cache (data/inat/cache.jsonl, ~30 MB) is not in git: it is kept in the
+# GitHub Actions cache. GitHub deletes cache entries not used for 7 days, hence two
+# runs a week. If it is ever gone, the next run simply does a full pull.
 #
 # A full pull (~150k records) can take over an hour. The fetch stops itself after
 # 100 minutes, keeps what it has in the Actions cache, and starts a follow-up run
@@ -11,7 +15,7 @@ name: Update iNaturalist data
 
 on:
   schedule:
-    - cron: "17 11 * * 1"      # Mondays 11:17 UTC (4:17 am in Vancouver in summer)
+    - cron: "17 11 * * 1,4"    # Mondays and Thursdays 11:17 UTC (4:17 am in Vancouver in summer)
   workflow_dispatch:
     inputs:
       full:
@@ -41,6 +45,13 @@ jobs:
       - name: Install shapely (ecoregion tagging)
         run: pip install "shapely>=2.1"
 
+      - name: Restore the iNaturalist cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/inat/cache.jsonl
+          key: inat-cache-${{ github.run_id }}
+          restore-keys: inat-cache-
+
       - name: Restore an unfinished full pull, if any
         uses: actions/cache/restore@v4
         with:
@@ -66,7 +77,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run update-inat.yml --ref "${{ github.ref_name }}" -f full=${{ inputs.full && 'true' || 'false' }}
 
-      # --- Pull finished: build and commit ---
+      # --- Pull finished: keep the new cache, build and commit ---
+      - name: Save the iNaturalist cache
+        if: steps.fetch.outputs.partial != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: data/inat/cache.jsonl
+          key: inat-cache-${{ github.run_id }}-${{ github.run_attempt }}
+
       - name: Build observations-inat.json
         if: steps.fetch.outputs.partial != 'true'
         run: python scripts/build_inat.py
@@ -83,7 +101,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/inat data/observations-inat.json data/species-info.json
+          git add data/inat/state.json data/observations-inat.json data/species-info.json
           if git diff --cached --quiet; then
             echo "No changes."
             exit 0
