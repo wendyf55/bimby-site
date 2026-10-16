@@ -21,23 +21,67 @@ To re-export the CSV from the Numbers file (needs `pip install numbers-parser`):
 Needs shapely >= 2 (pip install shapely). Afterwards run scripts/build_species_info.py
 to fetch descriptions/photos for any new species.
 """
-import csv, json, os, sys
+import csv, os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bimby_data
 
 SRC = "data/occurrence_data_subset.csv"
 OUT = "data/observations-sg.json"
-SPECIES_INFO = "data/species-info.json"
-OLD_INAT = "data/observations-inat-2026-09.json"
 
-# The dataset has scientific names only. Common names come from species-info.json /
-# the old iNat data where the names match; these cover the rest (edit freely).
+# The dataset has scientific names only, so its common names live here (edit freely).
+# A species not listed falls back to data/species-info.json; the build prints any with no name.
 COMMON_NAMES = {
+    "Aglais milberti": "Milbert's Tortoiseshell",
+    "Anthocharis julia": "Julia Orangetip",
+    "Argynnis hydaspe": "Hydaspe Fritillary",
+    "Argynnis mormonia": "Mormon Fritillary",
+    "Boloria epithore": "Pacific Fritillary",
+    "Callophrys augustinus": "Brown Elfin",
+    "Callophrys eryphon": "Western Pine Elfin",
+    "Callophrys gryneus": "Juniper Hairstreak",
     "Carterocephalus mandan-skada": "Arctic Skipper",
     "Celastrina echo-asheri": "Echo Azure",
+    "Cercyonis oetus": "Small Wood-Nymph",
+    "Cercyonis pegala": "Common Wood-Nymph",
+    "Chlosyne palla": "Northern Checkerspot",
+    "Coenonympha california": "Common Ringlet",
+    "Colias philodice": "Clouded Sulphur",
     "Cupido amyntula-comyntas": "Tailed-Blue",
+    "Erebia epipsodea": "Common Alpine",
+    "Erynnis icelus": "Dreamy Duskywing",
+    "Erynnis persius": "Persius Duskywing",
+    "Euphydryas anicia": "Anicia Checkerspot",
+    "Glaucopsyche lygdamus": "Silvery Blue",
+    "Hesperia colorado": "American Branded Skipper",
+    "Icaricia icarioides": "Boisduval's Blue",
+    "Icaricia saepiolus": "Greenish Blue",
+    "Limenitis arthemis": "Red-spotted Admiral",
+    "Limenitis lorquini": "Lorquin's Admiral",
+    "Neophasia menapia": "Pine White",
+    "Nymphalis antiopa": "Mourning Cloak",
+    "Nymphalis californica": "California Tortoiseshell",
+    "Nymphalis l-album": "Compton Tortoiseshell",
+    "Ochlodes sylvanoides": "Woodland Skipper",
+    "Papilio canadensis": "Canadian Tiger Swallowtail",
+    "Papilio eurymedon": "Pale Swallowtail",
+    "Papilio rutulus": "Western Tiger Swallowtail",
+    "Papilio zelicaon": "Anise Swallowtail",
+    "Phyciodes mylitta": "Mylitta Crescent",
+    "Phyciodes pulchella": "Field Crescent",
+    "Pieris marginalis": "Margined White",
+    "Pieris rapae": "Small White",
     "Plebejus scudderii": "Scudder's Blue",
+    "Polygonia faunus": "Green Comma",
+    "Polygonia gracilis": "Hoary Comma",
+    "Polygonia satyrus": "Satyr Comma",
+    "Pontia occidentalis": "Western White",
+    "Strymon melinus": "Gray Hairstreak",
+    "Tharsalea helloides": "Purplish Copper",
+    "Tharsalea mariposa": "Mariposa Copper",
+    "Thymelicus lineola": "Essex Skipper",
+    "Vanessa atalanta": "Red Admiral",
+    "Vanessa cardui": "Painted Lady",
 }
 
 
@@ -52,13 +96,8 @@ def export_numbers(path):
 
 
 def known_common_names():
-    names = {}
-    if os.path.exists(OLD_INAT):
-        for o in json.load(open(OLD_INAT, encoding="utf-8")):
-            if o.get("commonName"):
-                names.setdefault(o["scientificName"], o["commonName"])
-    names.update(bimby_data.known_common_names(COMMON_NAMES))
-    return names
+    """COMMON_NAMES, with species-info.json filling in any species not listed."""
+    return bimby_data.known_common_names(COMMON_NAMES)
 
 
 def main():
