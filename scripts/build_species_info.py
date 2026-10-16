@@ -21,7 +21,9 @@ Matching
     (it sometimes uses an older genus), the common name is tried.
 
 Manual fixes
-    Optional data/species-info-overrides.json, keyed by scientific name, e.g.
+    Optional data/species-info-overrides.json (tracked in git), keyed by scientific
+    name; keys starting with "_" are comments. A species is fetched again whenever its
+    override is added, changed or removed. E.g.
         { "Colias": { "wikipediaTitle": "Colias" },
           "Some species": { "description": "Our own text…", "photoUrl": "…",
                             "photoAttribution": "(c) …", "photoLicense": "cc-by" } }
@@ -32,6 +34,7 @@ Uses only the Python standard library. Needs internet access. Run from the repo 
 It pauses ~1 s between iNaturalist requests (their API limit), so a full run of
 ~250 species takes about 5–8 minutes.
 """
+import glob
 import json
 import os
 import re
@@ -42,32 +45,43 @@ import urllib.parse
 import urllib.request
 from datetime import date
 
-import glob
-
 OBS_GLOB = "data/observations-*.json"   # one file per data source (see bimby_data.py)
 OUT = "data/species-info.json"
 OVERRIDES = "data/species-info-overrides.json"
 
-USER_AGENT = "BIMBY-butterfly-map/1.0 (UBC Tseng Lab; https://github.com/wendyf55/bimby-site)"
+USER_AGENT = "butterfly-map/1.0 (UBC Tseng Lab; https://github.com/wendyf55/bimby-site)"   # as fetch_inat.py
 INAT_PAUSE = 1.0         # seconds between iNaturalist calls
 WIKI_PAUSE = 0.2
+BACKOFF = [5, 15, 60]    # waits before each retry after 429 / 5xx / network error
 
 
 def get_json(url):
+    """GET a JSON URL. None for 404; retries with a backoff on 429 / server / network errors."""
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.load(r)
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return None
-        raise
-    except urllib.error.URLError as e:
-        if "CERTIFICATE_VERIFY_FAILED" in str(e):
-            sys.exit("SSL certificate error. On a Mac with Python from python.org, run\n"
-                     "  open '/Applications/Python 3.*/Install Certificates.command'\n"
-                     "once (or use Homebrew's python3), then try again.")
-        raise
+    for attempt in range(len(BACKOFF) + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            if e.code not in (429, 500, 502, 503, 504) or attempt == len(BACKOFF):
+                raise
+            wait = BACKOFF[attempt]
+            ra = e.headers.get("Retry-After")
+            if ra and ra.isdigit():
+                wait = max(wait, int(ra))
+            print(f"  HTTP {e.code}; waiting {wait}s before retrying", flush=True)
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            if "CERTIFICATE_VERIFY_FAILED" in str(e):
+                sys.exit("SSL certificate error. On a Mac with Python from python.org, run\n"
+                         "  open '/Applications/Python 3.*/Install Certificates.command'\n"
+                         "once (or use Homebrew's python3), then try again.")
+            if attempt == len(BACKOFF):
+                raise
+            wait = BACKOFF[attempt]
+            print(f"  network error ({e}); waiting {wait}s before retrying", flush=True)
+        time.sleep(wait)
 
 
 def candidates(name):
@@ -210,7 +224,10 @@ def build_one(sci, common, override):
         if not entry["photo"]:
             entry["photo"] = commons_photo(summary)
 
-    # Manual overrides win
+    # Manual overrides win. The override is kept in the entry so the next run can tell
+    # whether it changed (and only then fetch the species again).
+    if override:
+        entry["override"] = override
     if override.get("description"):
         entry["wikipedia"] = {"title": None, "url": override.get("descriptionUrl"),
                               "extract": override["description"], "custom": True}
@@ -227,8 +244,9 @@ def main():
     species = {}
     for path in sorted(glob.glob(OBS_GLOB)):
         try:
-            src = json.load(open(path, encoding="utf-8"))
-        except (ValueError, KeyError):
+            with open(path, encoding="utf-8") as f:
+                src = json.load(f)
+        except ValueError:
             continue                     # not a source file
         for sci, common in src.get("species", []):
             if common or sci not in species:
@@ -236,10 +254,16 @@ def main():
 
     info = {}
     if os.path.exists(OUT) and not refresh:
-        info = json.load(open(OUT)).get("species", {})
-    overrides = json.load(open(OVERRIDES)) if os.path.exists(OVERRIDES) else {}
+        with open(OUT, encoding="utf-8") as f:
+            info = json.load(f).get("species", {})
+    overrides = {}
+    if os.path.exists(OVERRIDES):
+        with open(OVERRIDES, encoding="utf-8") as f:
+            overrides = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
 
-    todo = [s for s in sorted(species) if s not in info or s in overrides]
+    # New species, plus any whose override was added, edited or removed since the last run
+    todo = [s for s in sorted(species)
+            if s not in info or (info[s] or {}).get("override") != overrides.get(s)]
     print(f"{len(species)} species; fetching {len(todo)} ({len(species) - len(todo)} already done)")
     for i, sci in enumerate(todo, 1):
         try:
@@ -275,8 +299,10 @@ def save(info, species):
         # has the iNat source, so dropping "unused" species would lose the others.
         "species": {s: info[s] for s in sorted(info)},
     }
-    with open(OUT, "w") as f:
+    tmp = OUT + ".tmp"                   # write then swap, so a crash never leaves half a file
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+    os.replace(tmp, OUT)
 
 
 if __name__ == "__main__":
