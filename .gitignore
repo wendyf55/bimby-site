@@ -1,6 +1,6 @@
-# Data is local by default 
+# Data files are local unless listed below...
 data/*
-# ...except what the weekly iNaturalist job needs and updates:
+# ...except what the site loads and the iNaturalist job updates:
 !data/ecoregions.geojson
 !data/species-info.json
 !data/observations-inat.json
