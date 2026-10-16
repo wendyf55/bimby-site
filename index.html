@@ -1169,9 +1169,19 @@
 
     // ---------- Map ----------
     const BC_BOUNDS = [[48.2, -139.1], [60.0, -114.0]];   // British Columbia
-    const map = L.map('map', { zoomSnap: 0.25 }).fitBounds(BC_BOUNDS);
+    const NA_BOUNDS = [[7.0, -170.0], [84.0, -50.0]];      // North America: only these map tiles are drawn
+    const VIEW_BOUNDS = [[44.0, -152.0], [65.0, -100.0]];  // BC plus a margin: how far the map can be panned
+    const map = L.map('map', {
+      zoomSnap: 0.25, maxBounds: VIEW_BOUNDS, maxBoundsViscosity: 1.0, worldCopyJump: false
+    }).fitBounds(BC_BOUNDS);
+    // Don't let people zoom out past "all of BC" (re-checked when the map changes size)
+    function lockZoomToBC() {
+      map.setMinZoom(Math.max(0, map.getBoundsZoom(BC_BOUNDS) - 0.5));
+    }
+    lockZoomToBC();
+    map.on('resize', lockZoomToBC);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
+      maxZoom: 19, bounds: NA_BOUNDS, noWrap: true,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         + ' | Ecoregions: <a href="https://sis.agr.gc.ca/cansis/nsdb/ecostrat/" target="_blank" rel="noopener">AAFC</a>'
     }).addTo(map);

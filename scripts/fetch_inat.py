@@ -51,7 +51,7 @@ QUERY = {"taxon_id": 47224, "place_id": 7085, "quality_grade": "research",
          "order_by": "id", "order": "asc", "per_page": 200}
 QUERY_KEY = json.dumps({k: v for k, v in QUERY.items() if k not in ("order_by", "order", "per_page")},
                        sort_keys=True)   # stored in state.json; a change forces a full pull
-USER_AGENT = "BIMBY-butterfly-map/1.0 (UBC Tseng Lab; https://github.com/wendyf55/bimby-site)"
+USER_AGENT = "butterfly-map/1.0 (UBC Tseng Lab; https://github.com/wendyf55/bimby-site)"
 PAUSE = 1.0                         # seconds between requests (iNat asks for ~1/s)
 BACKOFF = [10, 30, 60, 120, 300]    # waits before each retry after 429 / 5xx / network error
 FULL_EVERY_DAYS = 28
