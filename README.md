@@ -5,7 +5,6 @@ A citizen-science map of BC.
 ## TODO
 
 - update place searching? Nominatim limited to one request / second, but that could be fine
-- fix postal code search
 - full code overview
 - deduplicate - how?
 - redeploy with GH pages

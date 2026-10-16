@@ -5,7 +5,7 @@
  *   descriptions = first paragraph of the Wikipedia article (CC BY-SA 4.0)
  *   photos       = iNaturalist taxon photos (licence + credit per photo),
  *                  Wikimedia Commons as a fallback
- * If the file is missing, everything here quietly renders nothing.
+ * If the file is missing, everything here renders nothing, no error message.
  *
  * Usage in a page:
  *   <script src="species-info.js"></script>
