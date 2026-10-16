@@ -1808,7 +1808,9 @@
       on('#yearSel', 'change', e => { state.year = e.target.value; scopeCache = null; state.open = null; render(); drawSpeciesDots(false); });
 
       box.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => {
-        state.open = c.dataset.sci; state.listId = null; render();
+        state.open = c.dataset.sci; state.listId = null;
+        if (state.mapped && state.mapped !== state.open) { state.mapped = null; drawSpeciesDots(false); }   // clear the previous butterfly's dots
+        render();
         const d = document.getElementById('detail');
         d?.scrollIntoView({ block: 'start', behavior: 'smooth' });
         document.getElementById('closeDetail')?.focus({ preventScroll: true });
