@@ -1,5 +1,6 @@
 {
-  "lastFull": "2026-10-13T23:59:35Z",
-  "lastRun": "2026-10-13T23:59:35Z",
-  "records": 146392
+  "lastFull": "2026-10-16T21:16:42Z",
+  "lastRun": "2026-10-16T21:16:42Z",
+  "records": 135937,
+  "query": "{\"license\": \"cc0,cc-by,cc-by-nc\", \"place_id\": 7085, \"quality_grade\": \"research\", \"taxon_id\": 47224}"
 }
