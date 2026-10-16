@@ -39,6 +39,12 @@ DECIMALS = 3             # coordinate rounding in the output (~100 m)
 # Tidy a few inconsistent names in the 2003 ecozone attribute table
 ZONE_NAME_FIXES = {"Boreal PLain": "Boreal Plain", "MixedWood Plain": "Mixedwood Plain"}
 
+# The 2006 ecoregion table uses the US spelling "Okanogan" for the two cross-border
+# regions (210 Okanogan Range, 211 Okanogan Highland); use the Canadian "Okanagan"
+# so they match the rest of the site. This departs from the official AAFC names.
+def fix_region_name(name):
+    return name.replace("Okanogan", "Okanagan")
+
 
 def read_zip_shapefile(zip_path, stem):
     """Read a shapefile straight out of its zip (attributes are latin-1)."""
@@ -61,8 +67,8 @@ def main():
     for sr in rr.iterShapeRecords():
         rid = sr.record["ECOREGION"]
         parts.setdefault(rid, []).append(shape(sr.shape.__geo_interface__).buffer(0))
-        info[rid] = {"id": rid, "name": sr.record["REGION_NAM"].strip(),
-                     "nameFr": sr.record["REGION_NOM"].strip(), "zoneId": sr.record["ECOZONE"]}
+        info[rid] = {"id": rid, "name": fix_region_name(sr.record["REGION_NAM"].strip()),
+                     "nameFr": fix_region_name(sr.record["REGION_NOM"].strip()), "zoneId": sr.record["ECOZONE"]}
     ids = sorted(parts)
     full = [unary_union(parts[i]) for i in ids]
     print(f"{len(ids)} ecoregions across {len(zone_names)} ecozones")

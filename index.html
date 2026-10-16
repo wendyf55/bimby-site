@@ -673,6 +673,13 @@
       font-size: 13px;
     }
 
+    .filters select.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-ink);
+      font-weight: 600;
+    }
+
     .chip[aria-pressed="true"] {
       background: var(--accent);
       border-color: var(--accent);
@@ -1149,7 +1156,7 @@
     const state = {
       point: null, place: '', radiusKm: 15, region: null,   // region = GeoJSON feature or null
       scope: 'near',                                          // 'near' | 'region'
-      q: '', flyingNow: false, sort: 'count', year: '',
+      q: '', month: '', sort: 'count', year: '',
       open: null, plantCat: 'host', listId: null,             // expanded card
       mapped: null,                                           // species shown as dots
       matches: null, message: '', showEcoInfo: false,
@@ -1452,7 +1459,7 @@
       let rows = [...scopeObservations().species.values()];
       const q = state.q.trim().toLowerCase();
       if (q) rows = rows.filter(s => (s.sci + ' ' + (s.common || '')).toLowerCase().includes(q));
-      if (state.flyingNow) rows = rows.filter(s => s.months[THIS_MONTH] > 0);
+      if (state.month !== '') rows = rows.filter(s => s.months[+state.month] > 0);
       const name = s => s.common || s.sci;
       const sorts = {
         count: (a, b) => b.count - a.count || name(a).localeCompare(name(b)),
@@ -1524,7 +1531,11 @@
         <div class="filters">
           <label class="sr-only" for="qInput">Search butterflies</label>
           <input id="qInput" type="search" placeholder="Search butterflies" value="${esc(state.q)}">
-          <button class="chip" type="button" id="flyBtn" aria-pressed="${state.flyingNow}">Flying in ${MONTHS_LONG[THIS_MONTH]}</button>
+          <label class="sr-only" for="monthSel">Flying in month</label>
+          <select id="monthSel" class="${state.month !== '' ? 'active' : ''}">
+            <option value="">Flying any month</option>
+            ${MONTHS_LONG.map((m, i) => `<option value="${i}" ${String(i) === state.month ? 'selected' : ''}>Flying in ${m}${i === THIS_MONTH ? ' (now)' : ''}</option>`).join('')}
+          </select>
           <label class="sr-only" for="sortSel">Sort</label>
           <select id="sortSel">
             <option value="count" ${state.sort === 'count' ? 'selected' : ''}>Most seen</option>
@@ -1534,14 +1545,14 @@
           ${allYears.length > 1 ? `<select id="yearSel" aria-label="Year"><option value="">All years</option>${allYears.slice().reverse().map(y =>
         `<option ${y === state.year ? 'selected' : ''}>${y}</option>`).join('')}</select>` : ''}
         </div>
-        <div class="count-line">${plural(rows.length, 'butterfly species', 'butterfly species')} ${where}${state.flyingNow ? `, seen in ${MONTHS_LONG[THIS_MONTH]}` : ''}</div>`;
+        <div class="count-line">${plural(rows.length, 'butterfly species', 'butterfly species')} ${where}${state.month !== '' ? `, seen in ${MONTHS_LONG[+state.month]}` : ''}</div>`;
 
       if (!rows.length) {
         const nothing = scopeObservations().species.size === 0;
         html += `<div class="empty">${nothing
           ? `No butterfly records ${where} yet. Try a bigger distance, switch to your ecoregion, or be the first:
              <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">add a sighting on iNaturalist</a>.`
-          : state.flyingNow ? `None of these butterflies have been recorded ${where} in ${MONTHS_LONG[THIS_MONTH]} yet.
+          : state.month !== '' ? `None of these butterflies have been recorded ${where} in ${MONTHS_LONG[+state.month]} yet.
              <button class="link-btn" type="button" id="clearFly">Show all months</button>`
             : `No butterflies match “${esc(state.q)}”.`}</div>`;
       } else {
@@ -1791,8 +1802,8 @@
         state.q = q.value; const pos = q.selectionStart; render();
         const n = document.getElementById('qInput'); n.focus(); n.setSelectionRange(pos, pos);
       });
-      on('#flyBtn', 'click', () => { state.flyingNow = !state.flyingNow; render(); });
-      on('#clearFly', 'click', () => { state.flyingNow = false; render(); });
+      on('#monthSel', 'change', e => { state.month = e.target.value; render(); });
+      on('#clearFly', 'click', () => { state.month = ''; render(); });
       on('#sortSel', 'change', e => { state.sort = e.target.value; render(); });
       on('#yearSel', 'change', e => { state.year = e.target.value; scopeCache = null; state.open = null; render(); drawSpeciesDots(false); });
 
