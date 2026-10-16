@@ -1,10 +1,14 @@
-# Data is local by default (some of it, like the Shepard & Guppy records, isn't ours to publish).
+# Data is local by default 
 data/*
 # ...except what the weekly iNaturalist job needs and updates:
 !data/ecoregions.geojson
 !data/species-info.json
 !data/observations-inat.json
 !data/inat/
+!data/plant-lists.json
+!data/postal-fsa.json
+!data/observations-sg.json
+!data/species-info-overrides.json
 # ...but not an unfinished full pull (kept in the Actions cache between runs instead)
 data/inat/partial.jsonl
 
