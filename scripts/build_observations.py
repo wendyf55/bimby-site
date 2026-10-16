@@ -86,7 +86,7 @@ def main():
                 "lng": float(lng),
                 "date": (r.get("Date") or "").strip()[:10],
             })
-    bimby_data.write_source(OUT, "sg", "Shepard & Guppy", rows)
+    bimby_data.write_source(OUT, "sg", "Guppy & Shepard", rows)
     print(f"Skipped {skipped} rows missing a name or coordinates")
     if no_name:
         print("No common name for:", ", ".join(sorted(no_name)))

@@ -1145,7 +1145,7 @@
 
     // ---------- Data sources (one file each, built by scripts/build_*.py) ----------
     const SOURCES = [
-      { key: 'sg', file: 'data/observations-sg.json', label: 'Shepard & Guppy', short: 'S&G' },
+      { key: 'sg', file: 'data/observations-sg.json', label: 'Guppy & Shepard', short: 'G&S' },
       { key: 'inat', file: 'data/observations-inat.json', label: 'iNaturalist', short: 'iNat' },
     ];
     const NEAR_MIN_KM_OBSCURED = 30;   // obscured iNat locations (blurred ~20 km) only count from this distance up
@@ -1434,7 +1434,7 @@
           const list = found.filter(inBC).slice(0, 5);
           state.message = list.length ? ''
             : found.length ? `We found “${shortPlace(found[0].display_name)}”, but it’s outside British Columbia. This map covers BC only.`
-            : `No places in British Columbia found for “${q}”. Check the spelling, try a nearby town, or click the map.`;
+              : `No places in British Columbia found for “${q}”. Check the spelling, try a nearby town, or click the map.`;
           state.matches = list.map(p => ({ lat: +p.lat, lng: +p.lon, name: p.display_name }));
           if (state.matches.length === 1) pickMatch(0); else render();
         })
@@ -1578,7 +1578,7 @@
         <button class="btn secondary full" type="button" id="locateBtn">${ICON.locate}<span>Use my location</span></button>
         <p class="hint">You can also click anywhere on the map.</p>
         ${total ? `<div class="canada">${sourceHTML()}<p style="margin:0">The map holds <b>${fmt(total)}</b> records of <b>${sp}</b> butterfly species from British Columbia
-          (${activeSources().map(k => k === 'sg' ? 'Shepard &amp; Guppy, 2001' : 'iNaturalist observers').join(' and ')}).
+          (${activeSources().map(k => k === 'sg' ? 'Guppy &amp; Shepard, 2001' : 'iNaturalist observers').join(' and ')}).
           Seen a butterfly? <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">Join the BIMBY project on iNaturalist</a>.</p></div>` : ''}`;
     }
 
@@ -1656,7 +1656,7 @@
             <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener" style="color:var(--link)">CC BY-NC</a>;
             records under other licences are not shown); each map dot links to its observation, with the observer's name and licence.
             Thanks to the iNaturalist observers who shared them. Subspecies are counted under their species, and a few split species are
-            grouped to match Shepard &amp; Guppy (e.g. iNaturalist's two Arctic Skippers count as one). Where an observer hid their exact location
+            grouped to match Guppy &amp; Shepard (e.g. iNaturalist's two Arctic Skippers count as one). Where an observer hid their exact location
             (blurred by about 20 km), the sighting counts towards your ecoregion and the ${NEAR_MIN_KM_OBSCURED} km and ${RADII[RADII.length - 1]} km circles only.</p>` : ''}
           <p>Descriptions come from Wikipedia and photos from iNaturalist photographers (credited on each butterfly).
             Plant lists come from the Xerces Society. Ecoregions: Agriculture and Agri-Food Canada.</p>
