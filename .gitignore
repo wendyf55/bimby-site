@@ -5,6 +5,8 @@ data/*
 !data/species-info.json
 !data/observations-inat.json
 !data/inat/
+# ...but not an unfinished full pull (kept in the Actions cache between runs instead)
+data/inat/partial.jsonl
 
 Occurrence_data-subset.numbers
 .DS_Store

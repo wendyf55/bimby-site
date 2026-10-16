@@ -26,11 +26,14 @@ Then open <http://localhost:8000>
       ecozones.geojson             Ecozone outlines (generated; not currently used)
       species-info.json            Species descriptions + photos (generated)
       species-info-overrides.json  Optional hand fixes for the above
-      raw/                         Ecoregion + ecozone shapefile zips from AAFC
+      postal-fsa.json              BC postal code areas for the place search (generated)
+      raw/                         Ecoregion + ecozone shapefile zips from AAFC,
+                                   FSA boundary zip from Statistics Canada
     scripts/
       build_observations.py        Rebuilds observations.json from the occurrence CSV
       build_ecoregions.py          Builds the three ecoregion/ecozone files above
       build_species_info.py        Builds species-info.json (needs internet)
+      build_postal.py              Builds postal-fsa.json from the FSA boundary file
 
 ## Data sources
 
@@ -94,6 +97,37 @@ Then open <http://localhost:8000>
   header). Pages work without the file — they just show no photos/descriptions.
 - **On the pages:** a small photo next to each butterfly in the lists, and the photo +
   description at the top of each butterfly's detail view.
+
+### Postal code areas — Statistics Canada FSA boundaries
+
+- **Source:** Statistics Canada, *Census Forward Sortation Area Boundary File, 2021*
+  (catalogue 92-179-X), cartographic boundaries, shapefile:
+  <https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/files-fichiers/lfsa000b21a_e.zip>
+  (Statistics Canada Open Licence).
+- **Why only the first three characters:** full six-character postal code locations
+  are licensed by Canada Post (and Statistics Canada's Postal Code Conversion File
+  can't be redistributed), but forward sortation area (FSA) boundaries — the "V6T" in
+  "V6T 1Z4" — are open. City FSAs are a few km across, close enough for a 5 km search.
+- **Raw file:** `data/raw/lfsa000b21a_e.zip` (downloaded 2026-10-16, ~160 MB; Statistics
+  Canada's site has to be opened in a browser — scripted downloads are refused).
+- **Pipeline:** `python3 scripts/build_postal.py` (needs `pip install pyshp shapely pyproj`;
+  the boundaries are in Statistics Canada Lambert and are reprojected to lat/long)
+  writes `data/postal-fsa.json` (~130 KB): one entry per BC FSA (191, all starting
+  with V) with a point well inside the area and its size in km². "Wide" FSAs — rural
+  codes (second character 0, e.g. V0H) and any larger than 250 km² (52 in all) — also
+  carry an outline simplified to ~2 km.
+- **On the page:** the place search recognises postal codes ("V6T 1Z4", "v6t1z4",
+  "V6T"; a letter O typed for a zero is accepted) and looks them up in this file,
+  loaded only on the first postal code search, instead of OpenStreetMap:
+  - city FSA → pin at the area's point, labelled with the town, e.g. "Vancouver,
+    British Columbia (V6T)";
+  - wide FSA → the area is outlined on the map and the visitor is asked to click their
+    spot or search their town (a pin in the middle could be far from them);
+  - non-BC code → "…is a postal code in Alberta. This map covers British Columbia only";
+  - if the file is missing, the search falls back to OpenStreetMap.
+- **Town search:** other text goes to OpenStreetMap's Nominatim geocoder, limited to a
+  rectangle around BC; results are then filtered to BC by address (the rectangle also
+  takes in part of Alberta, e.g. Banff and Jasper).
 
 ## `plant-lists.json` structure
 

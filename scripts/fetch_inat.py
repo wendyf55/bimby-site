@@ -26,6 +26,10 @@ Modes
                 deleted observations and ones that are no longer research grade
                 or no longer butterflies (incremental runs can't see those).
     --max-pages N   Stop after N requests (for testing).
+    --time-limit M  Stop a full pull after M minutes and save what it has so far to
+                    data/inat/partial.jsonl; the next run picks up where it stopped
+                    (a full pull of ~150k records takes about an hour). The cache is
+                    only replaced once the full pull is complete.
     If QUERY changes (e.g. the licence filter), the next run is automatically a
     full pull, and the "< 80% of the cache" safety check is skipped for it.
 
@@ -59,6 +63,7 @@ MIN_FULL_RATIO = 0.8
 
 CACHE = "data/inat/cache.jsonl"
 STATE = "data/inat/state.json"
+PARTIAL = "data/inat/partial.jsonl"   # unfinished full pull: header line, then records
 
 
 def now_iso():
@@ -104,10 +109,16 @@ def slim(o):
             "license": (o.get("license_code") or "").lower() or None}
 
 
-def walk(extra, max_pages=None):
-    """Yield slim records for the query, following id_above until the end."""
-    last_id, pages, seen, total = 0, 0, 0, None
+def walk(extra, max_pages=None, start_id=0, deadline=None, progress=None):
+    """Yield slim records for the query, following id_above until the end.
+    progress (a dict) gets last_id and done=True/False (False = stopped at deadline)."""
+    last_id, pages, seen, total = start_id, 0, 0, None
+    progress = progress if progress is not None else {}
+    progress.update(last_id=last_id, done=False)
     while True:
+        if deadline and time.time() > deadline:
+            print(f"Time limit reached after {seen} records; stopping here", flush=True)
+            return
         data = get_page({**QUERY, **extra, "id_above": last_id})
         pages += 1
         if total is None:
@@ -119,9 +130,12 @@ def walk(extra, max_pages=None):
         seen += len(results)
         if pages % 10 == 0:
             print(f"  {seen}/{total}", flush=True)
+        if results:
+            last_id = results[-1]["id"]
+            progress["last_id"] = last_id
         if len(results) < QUERY["per_page"]:
+            progress["done"] = True
             break
-        last_id = results[-1]["id"]
         if max_pages and pages >= max_pages:
             print(f"Stopping after {pages} pages (--max-pages)")
             break
@@ -134,6 +148,34 @@ def load_cache():
         return {}
     with open(CACHE, encoding="utf-8") as f:
         return {r["id"]: r for r in (json.loads(line) for line in f if line.strip())}
+
+
+def load_partial():
+    """An unfinished full pull: (header, records) or (None, {})."""
+    if not os.path.exists(PARTIAL):
+        return None, {}
+    with open(PARTIAL, encoding="utf-8") as f:
+        lines = [json.loads(line) for line in f if line.strip()]
+    if not lines or "_resume" not in lines[0]:
+        return None, {}
+    return lines[0]["_resume"], {r["id"]: r for r in lines[1:]}
+
+
+def save_partial(head, records):
+    tmp = PARTIAL + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(json.dumps({"_resume": head}) + "\n")
+        for k in sorted(records):
+            f.write(json.dumps(records[k], ensure_ascii=False, separators=(",", ":")) + "\n")
+    os.replace(tmp, PARTIAL)
+
+
+def tell_actions(partial):
+    """Let the GitHub Actions workflow know whether this run finished."""
+    out = os.environ.get("GITHUB_OUTPUT")
+    if out:
+        with open(out, "a") as f:
+            f.write(f"partial={'true' if partial else 'false'}\n")
 
 
 def save(cache, state):
@@ -151,6 +193,8 @@ def save(cache, state):
 def main():
     args = sys.argv[1:]
     max_pages = int(args[args.index("--max-pages") + 1]) if "--max-pages" in args else None
+    limit = float(args[args.index("--time-limit") + 1]) if "--time-limit" in args else None
+    deadline = time.time() + limit * 60 if limit else None
     cache = load_cache()
     state = json.load(open(STATE)) if os.path.exists(STATE) else {}
     started = now_iso()
@@ -163,12 +207,37 @@ def main():
         last_full = datetime.fromisoformat(state["lastFull"].replace("Z", "+00:00"))
         full = datetime.now(timezone.utc) - last_full > timedelta(days=FULL_EVERY_DAYS)
 
+    head, fresh = load_partial()
+    # Resume only an unfinished pull of this same query that started after the last
+    # completed full pull (an old leftover is ignored).
+    resume = bool(head) and head.get("query") == QUERY_KEY \
+        and head.get("started", "") > state.get("lastFull", "")
+    if resume and not full:
+        print("Found an unfinished full pull; continuing it")
+        full = True
+
     if full:
-        print("Full pull")
-        fresh = {r["id"]: r for r in walk({}, max_pages)}
+        if resume:
+            started = head["started"]
+            print(f"Full pull, continuing after id {head['lastId']} ({len(fresh)} records so far)")
+        else:
+            head, fresh = {"query": QUERY_KEY, "started": started, "lastId": 0}, {}
+            print("Full pull")
+        progress = {}
+        for r in walk({}, max_pages, head["lastId"], deadline, progress):
+            fresh[r["id"]] = r
+        if not progress["done"] and not max_pages:
+            head["lastId"] = progress["last_id"]
+            save_partial(head, fresh)
+            tell_actions(partial=True)
+            print(f"Saved {len(fresh)} records so far to {PARTIAL}; run again to continue. "
+                  "The cache and the site data are unchanged until the pull is complete.")
+            return
         if cache and len(fresh) < MIN_FULL_RATIO * len(cache) and not max_pages and not query_changed:
             sys.exit(f"Full pull returned {len(fresh)} records but the cache has {len(cache)}; "
                      "not saving. Check the query or try again later.")
+        if os.path.exists(PARTIAL):
+            os.remove(PARTIAL)
         removed = len(set(cache) - set(fresh))
         added = len(set(fresh) - set(cache))
         cache = fresh
@@ -191,6 +260,7 @@ def main():
     state["lastRun"] = started
     state["records"] = len(cache)
     save(cache, state)
+    tell_actions(partial=False)
     print(f"Cache: {len(cache)} records -> {CACHE}")
 
 

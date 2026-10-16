@@ -3,6 +3,10 @@
 # Runs every Monday, and on demand from the Actions tab ("Run workflow"; tick
 # "full" to force a complete re-pull). See scripts/fetch_inat.py for how it
 # talks to iNaturalist. Commits only when the data actually changed.
+#
+# A full pull (~150k records) can take over an hour. The fetch stops itself after
+# 100 minutes, keeps what it has in the Actions cache, and starts a follow-up run
+# that carries on from there. The site data only changes once the pull is complete.
 name: Update iNaturalist data
 
 on:
@@ -17,6 +21,7 @@ on:
 
 permissions:
   contents: write
+  actions: write               # to start the follow-up run and use the cache
 
 concurrency:
   group: update-inat
@@ -25,7 +30,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -36,19 +41,45 @@ jobs:
       - name: Install shapely (ecoregion tagging)
         run: pip install "shapely>=2.1"
 
-      - name: Fetch from iNaturalist
-        run: python scripts/fetch_inat.py ${{ inputs.full && '--full' || '' }}
+      - name: Restore an unfinished full pull, if any
+        uses: actions/cache/restore@v4
+        with:
+          path: data/inat/partial.jsonl
+          key: inat-partial-${{ github.run_id }}
+          restore-keys: inat-partial-
 
+      - name: Fetch from iNaturalist
+        id: fetch
+        run: python scripts/fetch_inat.py --time-limit 100 ${{ inputs.full && '--full' || '' }}
+
+      # --- Pull not finished yet: keep progress, start the next run, stop here ---
+      - name: Keep progress for the next run
+        if: steps.fetch.outputs.partial == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: data/inat/partial.jsonl
+          key: inat-partial-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Start a follow-up run to continue
+        if: steps.fetch.outputs.partial == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run update-inat.yml --ref "${{ github.ref_name }}" -f full=${{ inputs.full && 'true' || 'false' }}
+
+      # --- Pull finished: build and commit ---
       - name: Build observations-inat.json
+        if: steps.fetch.outputs.partial != 'true'
         run: python scripts/build_inat.py
 
       - name: Descriptions and photos for any new species
         # Only fetches species not already in data/species-info.json.
-        #an issue here shouldn't block the data update; the next run retries.
+        # An issue here shouldn't block the data update; the next run retries.
+        if: steps.fetch.outputs.partial != 'true'
         continue-on-error: true
         run: python scripts/build_species_info.py
 
       - name: Commit if changed
+        if: steps.fetch.outputs.partial != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

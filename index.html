@@ -1218,7 +1218,7 @@
       window.addEventListener('resize', () => { const w = root.style.getPropertyValue('--panel-w'); if (w) set(parseFloat(w)); else map.invalidateSize(); });
     })();
     const youIcon = L.divIcon({ className: '', html: '<div class="you-pin"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
-    let youMarker = null, radiusCircle = null, regionLayer = null, dotLayer = null;
+    let youMarker = null, radiusCircle = null, regionLayer = null, dotLayer = null, postalLayer = null;
     const dotRenderer = L.canvas({ padding: 0.5 });
 
     const hint = L.control({ position: 'topright' });
@@ -1334,6 +1334,7 @@
     }
 
     function drawPlace(zoom) {
+      postalLayer?.remove(); postalLayer = null;
       hint.remove();
       youMarker?.remove(); radiusCircle?.remove(); regionLayer?.remove();
       if (!state.point) { hint.addTo(map); return; }
@@ -1356,14 +1357,84 @@
       map.fitBounds(b, { padding: [70, 70], maxZoom: 11 });   // leave some surroundings visible
     }
 
+    // ---------- Postal codes ----------
+    // Only the first three characters (the "forward sortation area", e.g. V6T) are used:
+    // data/postal-fsa.json is built from Statistics Canada's FSA boundaries
+    // (scripts/build_postal.py). Loaded on the first postal code search.
+    const PROVINCE_BY_LETTER = {
+      A: 'Newfoundland and Labrador', B: 'Nova Scotia', C: 'Prince Edward Island', E: 'New Brunswick',
+      G: 'Quebec', H: 'Quebec', J: 'Quebec', K: 'Ontario', L: 'Ontario', M: 'Ontario', N: 'Ontario', P: 'Ontario',
+      R: 'Manitoba', S: 'Saskatchewan', T: 'Alberta', X: 'Northwest Territories or Nunavut', Y: 'Yukon',
+    };
+    let postalData = null;
+    const loadPostal = () => postalData ??= fetch('data/postal-fsa.json')
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(d => d.fsa)
+      .catch(err => { postalData = null; throw err; });
+
+    // "v6t 1z4", "V6T1Z4", "V6T" → { fsa: 'V6T', code: 'V6T 1Z4' }. A letter O typed for
+    // a zero (common: "VOH") is accepted, since O never appears in Canadian postal codes.
+    function parsePostal(q) {
+      const c = q.toUpperCase().replace(/[\s-]/g, '');
+      if (!/^[A-Z][0-9O][A-Z]([0-9O][A-Z][0-9O])?$/.test(c)) return null;
+      const fix = c.split('').map((ch, i) => (i % 2 === 1 && ch === 'O') ? '0' : ch).join('');
+      return { fsa: fix.slice(0, 3), code: fix.length === 6 ? `${fix.slice(0, 3)} ${fix.slice(3)}` : fix };
+    }
+
+    function searchPostal(pc) {
+      if (pc.fsa[0] !== 'V') {
+        const prov = PROVINCE_BY_LETTER[pc.fsa[0]];
+        state.message = prov
+          ? `${pc.code} is a postal code in ${prov}. This map covers British Columbia only — BC postal codes start with V.`
+          : `${pc.code} isn’t a Canadian postal code we recognise. BC postal codes start with V.`;
+        render(); return;
+      }
+      state.message = 'Searching…'; state.matches = null; render();
+      loadPostal().then(fsas => {
+        const f = fsas[pc.fsa];
+        if (!f) {
+          state.message = `We couldn’t find the postal area ${pc.fsa}. Check the code, or search for your town instead.`;
+          render(); return;
+        }
+        if (!f.wide) {
+          setPoint({ lat: f.pt[0], lng: f.pt[1] }, `${pc.fsa} area`, false);
+          reverseGeocode(state.point, pc.fsa);
+          return;
+        }
+        // A rural or very large postal area: a pin in the middle could be far from the visitor,
+        // so show the area and let them click their spot.
+        state.message = `${pc.code} covers a large area (about ${fmt(f.km2)} km²), so we can’t tell where in it you are. ` +
+          `Click your spot inside the outlined area on the map, or search for your town.`;
+        render();
+        postalLayer?.remove();
+        postalLayer = L.geoJSON(f.outline, {
+          interactive: false,
+          style: { color: '#e79a3c', weight: 2, dashArray: '6 4', fillColor: '#e79a3c', fillOpacity: 0.08 },
+        }).addTo(map);
+        map.fitBounds(postalLayer.getBounds(), { padding: [40, 40] });
+      }).catch(() => searchByName(pc.code));   // lookup file missing: fall back to the place search
+    }
+
     function searchPlace(q) {
       q = q.trim();
       if (!q) return;
+      postalLayer?.remove(); postalLayer = null;
+      const pc = parsePostal(q);
+      if (pc) searchPostal(pc); else searchByName(q);
+    }
+
+    // Town/place search with OpenStreetMap's Nominatim. The viewbox is a rectangle around BC
+    // that also takes in part of Alberta, so results are filtered to BC by their address.
+    const inBC = p => p.address && (p.address['ISO3166-2-lvl4'] === 'CA-BC' || p.address.state === 'British Columbia');
+    function searchByName(q) {
       state.message = 'Searching…'; state.matches = null; render();
-      fetch(`${GEOCODER}/search?format=jsonv2&countrycodes=ca&viewbox=-139.1,60.0,-114.0,48.2&bounded=1&limit=5&q=${encodeURIComponent(q)}`)
+      fetch(`${GEOCODER}/search?format=jsonv2&addressdetails=1&countrycodes=ca&viewbox=-139.1,60.0,-114.0,48.2&bounded=1&limit=8&q=${encodeURIComponent(q)}`)
         .then(r => r.json())
-        .then(list => {
-          state.message = list.length ? '' : `No places in British Columbia found for “${q}”. Try a town name or postal code.`;
+        .then(found => {
+          const list = found.filter(inBC).slice(0, 5);
+          state.message = list.length ? ''
+            : found.length ? `We found “${shortPlace(found[0].display_name)}”, but it’s outside British Columbia. This map covers BC only.`
+            : `No places in British Columbia found for “${q}”. Check the spelling, try a nearby town, or click the map.`;
           state.matches = list.map(p => ({ lat: +p.lat, lng: +p.lon, name: p.display_name }));
           if (state.matches.length === 1) pickMatch(0); else render();
         })
@@ -1375,7 +1446,7 @@
     }
     const shortPlace = name => name.split(',').slice(0, 2).join(',').trim();
 
-    function reverseGeocode(latlng) {
+    function reverseGeocode(latlng, suffix) {
       const at = latlng;
       // Only the town is needed, so send coordinates rounded to ~1 km (2 decimals), never the exact spot.
       fetch(`${GEOCODER}/reverse?format=jsonv2&zoom=12&lat=${at.lat.toFixed(2)}&lon=${at.lng.toFixed(2)}`)
@@ -1385,6 +1456,7 @@
           const a = p.address;
           const town = a.city || a.town || a.village || a.hamlet || a.municipality || a.county || '';
           state.place = [town, a.state].filter(Boolean).join(', ');
+          if (state.place && suffix) state.place += ` (${suffix})`;
           if (state.place) renderPlaceName();
         })
         .catch(() => { });
