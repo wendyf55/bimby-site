@@ -1377,7 +1377,8 @@
 
     function reverseGeocode(latlng) {
       const at = latlng;
-      fetch(`${GEOCODER}/reverse?format=jsonv2&zoom=12&lat=${at.lat}&lon=${at.lng}`)
+      // Only the town is needed, so send coordinates rounded to ~1 km (2 decimals), never the exact spot.
+      fetch(`${GEOCODER}/reverse?format=jsonv2&zoom=12&lat=${at.lat.toFixed(2)}&lon=${at.lng.toFixed(2)}`)
         .then(r => r.json())
         .then(p => {
           if (state.point !== at || !p || !p.address) return;
