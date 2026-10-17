@@ -172,7 +172,7 @@ function sourceHTML() {
   return `<div class="src-pick"><span>Data:</span>
     <div class="seg" role="group" aria-label="Data source">${btn('all', 'Both')}${loaded.map(k => btn(k, esc(srcInfo(k).label))).join('')}</div>
     ${loaded.includes('inat') && (!state.sources || state.sources.includes('inat')) && srcMeta.inat.asOf
-      ? `<small>iNaturalist updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}</small>` : ''}</div>`;
+      ? `<small>Warning - Duplicate Records Present - iNaturalist updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}</small>` : ''}</div>`;
 }
 // Obscured iNat locations are blurred by ~20 km, so they don't belong in small "near you" circles.
 const nearOK = o => !o.obscured || state.radiusKm >= NEAR_MIN_KM_OBSCURED;
