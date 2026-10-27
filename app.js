@@ -110,7 +110,11 @@ hint.addTo(map);
 const banner = L.control({ position: 'topright' });
 banner.onAdd = () => { const d = L.DomUtil.create('div', 'map-banner'); L.DomEvent.disableClickPropagation(d); return d; };
 
-map.on('click', e => draw ? addCorner(e.latlng) : setPoint(e.latlng, null, true));
+map.on('click', e => {
+  const t = e.originalEvent?.target;
+  if (t && (!t.isConnected || t.closest('.leaflet-control'))) return;   // a click on a map button, not the map
+  draw ? addCorner(e.latlng) : setPoint(e.latlng, null, true);
+});
 map.on('mousemove', e => { if (draw) { draw.cursor = e.latlng; updateGuide(); } });
 map.on('dblclick', () => { if (draw) finishDrawing(); });
 
@@ -339,7 +343,17 @@ function drawHandles() {
 // pressing Enter or the Finish button. Esc cancels, Backspace removes the last corner.
 let draw = null;   // { pts, cursor, sketch, guide, dots } while drawing
 const drawBar = L.control({ position: 'topright' });
-drawBar.onAdd = () => { const d = L.DomUtil.create('div', 'map-banner draw-bar'); L.DomEvent.disableClickPropagation(d); return d; };
+// Built once; updateDrawBar() only changes the text and which buttons are enabled. (Replacing the
+// buttons mid-click detaches the clicked element, and Leaflet then counts the click as a map click.)
+drawBar.onAdd = () => {
+  const d = L.DomUtil.create('div', 'map-banner draw-bar');
+  L.DomEvent.disableClickPropagation(d);
+  d.innerHTML = `<span class="draw-msg"></span><span class="btns"><button type="button" data-d="undo">Undo</button>
+    <button type="button" data-d="finish">Finish</button><button type="button" data-d="cancel">Cancel</button></span>`;
+  const act = { undo: undoCorner, finish: finishDrawing, cancel: cancelDrawing };
+  d.querySelectorAll('button').forEach(b => b.addEventListener('click', () => act[b.dataset.d]()));
+  return d;
+};
 const SKETCH = { color: '#e79a3c', weight: 2, interactive: false };
 
 function startDrawing() {
@@ -408,13 +422,10 @@ function updateDrawBar() {
   const d = drawBar.getContainer();
   if (!d || !draw) return;
   const n = draw.pts.length;
-  d.innerHTML = `<span>${n < 3 ? `Click the map to add corners (${n} of at least 3)`
-    : n >= SHAPE_MAX_CORNERS ? `That’s the most corners (${SHAPE_MAX_CORNERS})` : 'Click the first corner or Finish when done'}</span>
-    <span class="btns"><button type="button" data-d="undo" ${n ? '' : 'disabled'}>Undo</button>
-    <button type="button" data-d="finish" ${n >= 3 ? '' : 'disabled'}>Finish</button>
-    <button type="button" data-d="cancel">Cancel</button></span>`;
-  const act = { undo: undoCorner, finish: finishDrawing, cancel: cancelDrawing };
-  d.querySelectorAll('button').forEach(b => b.addEventListener('click', () => act[b.dataset.d]()));
+  d.querySelector('.draw-msg').textContent = n < 3 ? `Click the map to add corners (${n} of at least 3)`
+    : n >= SHAPE_MAX_CORNERS ? `That’s the most corners (${SHAPE_MAX_CORNERS})` : 'Click the first corner or Finish when done';
+  d.querySelector('[data-d=undo]').disabled = !n;
+  d.querySelector('[data-d=finish]').disabled = n < 3;
 }
 document.addEventListener('keydown', e => {
   if (!draw || e.target.closest?.('input, select, textarea')) return;
