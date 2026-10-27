@@ -1,0 +1,4 @@
+# Python packages for the Update iNaturalist data workflow (.github/workflows/update-inat.yml).
+# Pinned to exact versions so a new release can't change what runs with write access to the repo.
+# Dependabot (.github/dependabot.yml) opens a pull request when a newer version is out.
+shapely==2.2.0

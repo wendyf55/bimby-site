@@ -43,7 +43,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install shapely (ecoregion tagging)
-        run: pip install "shapely>=2.1"
+        run: pip install -r .github/requirements-ci.txt   # exact versions; Dependabot proposes updates
 
       - name: Restore the iNaturalist cache
         uses: actions/cache/restore@v4

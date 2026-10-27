@@ -1,0 +1,18 @@
+# Dependabot opens a pull request when something the update workflow uses has a new version.
+# Review and merge it from the Pull requests tab (or close it to skip that version).
+version: 2
+updates:
+  # GitHub actions in .github/workflows/ (checkout, setup-python, cache)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Python packages the workflow installs (.github/requirements-ci.txt)
+  - package-ecosystem: "pip"
+    directory: "/.github"
+    schedule:
+      interval: "monthly"
