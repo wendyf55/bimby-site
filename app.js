@@ -14,7 +14,7 @@ const GEOCODER = 'https://nominatim.openstreetmap.org';   // OpenStreetMap place
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = n => n.toLocaleString('en-CA');
 const plural = (n, one, many = one + 's') => `${fmt(n)} ${n === 1 ? one : many}`;
-const fmtDate = d => { const [y, m, dd] = d.split('-'); return `${MONTHS[+m - 1]} ${+dd}, ${y}`; };
+const fmtDate = d => { const [y, m, dd] = d.split('-'); return `${MONTHS[+m - 1]} ${+dd}, ${esc(y)}`; };
 const ICON = {
   pin: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
   locate: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>',
@@ -657,11 +657,11 @@ function detailHTML(s) {
       </div>
       ${!list ? `<p class="note">We don’t have a plant list for this butterfly yet.</p>` : `
         ${lists.length > 1 ? `<select class="list-select" id="listSel" aria-label="Plant list">${lists.map(l =>
-        `<option value="${esc(l.id)}" ${l === list ? 'selected' : ''}>${esc(l.region)} — ${esc(shortSource(l.source.org))} (${l.source.year})</option>`).join('')}</select>`
+        `<option value="${esc(l.id)}" ${l === list ? 'selected' : ''}>${esc(l.region)} — ${esc(shortSource(l.source.org))} (${esc(l.source.year)})</option>`).join('')}</select>`
         : `<p class="note" style="margin-bottom:6px">List for: ${esc(list.region)}</p>`}
         ${plants.length ? `<ul class="plants">${plants.map(p => `<li><span>${esc(p.commonName)} <i>${esc(p.scientificName)}</i></span>${p.bloom ? `<span class="bloom">Blooms ${esc(p.bloom)}</span>` : ''}</li>`).join('')}</ul>`
         : `<p class="note">None listed as ${state.plantCat === 'host' ? 'host' : 'nectar'} plants in this list.</p>`}
-        <p class="cite">Source: <a href="${esc(list.source.url)}" target="_blank" rel="noopener">${esc(list.source.title)}</a>, ${esc(shortSource(list.source.org))} (${list.source.year}).</p>`}
+        <p class="cite">Source: <a href="${esc(list.source.url)}" target="_blank" rel="noopener">${esc(list.source.title)}</a>, ${esc(shortSource(list.source.org))} (${esc(list.source.year)}).</p>`}
 
       <div class="map-row">
         <button class="btn ${state.mapped === s.sci ? 'secondary' : 'primary'}" type="button" id="mapBtn">
@@ -871,7 +871,7 @@ function drawSpeciesDots(zoom) {
       bubblingMouseEvents: o.source !== 'inat',   // iNat dots open a popup instead of moving your spot
     }).bindTooltip(`${esc(name)} · ${fmtDate(o.observedOn)} · ${srcInfo(o.source).short}`);
     if (o.source === 'inat') m.bindPopup(`${esc(name)}<br>${fmtDate(o.observedOn)}${o.obscured ? ' <small>(location blurred)</small>' : ''}<br>
-      <a href="https://www.inaturalist.org/observations/${o.rid}" target="_blank" rel="noopener">View on iNaturalist</a>`);
+      <a href="https://www.inaturalist.org/observations/${encodeURIComponent(o.rid)}" target="_blank" rel="noopener">View on iNaturalist</a>`);
     return m;
   })).addTo(map);
   if (zoom && pts.length) map.fitBounds(L.latLngBounds(pts.map(o => [o.lat, o.lng])), { padding: [30, 30], maxZoom: 9 });
@@ -906,6 +906,9 @@ function restoreFromHash() {
   if (src.length && src.length < loaded.length) { state.sources = src; applySources(); }
   const at = (h.get('at') || '').split(',').map(Number);
   if (at.length !== 2 || at.some(isNaN)) return false;
+  // Only spots in the pannable area (BC plus a margin) are accepted from a link
+  const [[latMin, lngMin], [latMax, lngMax]] = VIEW_BOUNDS;
+  if (at[0] < latMin || at[0] > latMax || at[1] < lngMin || at[1] > lngMax) return false;
   if (RADII.includes(+h.get('r'))) state.radiusKm = +h.get('r');
   if (h.get('view') === 'region') state.scope = 'region';
   if (allYears.includes(h.get('year'))) state.year = h.get('year');

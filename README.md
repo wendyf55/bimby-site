@@ -2,13 +2,6 @@
 
 A citizen-science map of BC.
 
-## TODO
-
-- update place searching? Nominatim limited to one request / second, but that could be fine
-- deduplicate - how?
-- fetch-inat.py can lose its progress
-- redeploy with GH pages
-
 ## Running locally
 
 This site must be served over HTTP (not opened as a file), because it uses `fetch()`
