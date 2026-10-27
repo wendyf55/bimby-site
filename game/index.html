@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BIMBY — Where in BC? A butterfly guessing game</title>
+
+  <link rel="stylesheet" href="../vendor/leaflet/leaflet.css" />
+  <script src="../vendor/leaflet/leaflet.js"></script>
+
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="game.css" />
+</head>
+
+<body>
+  <div id="layout">
+    <aside id="panel" aria-label="Butterflies to guess from">
+      <header class="app-head">
+        <div class="app-title">Butterflies of British Columbia</div>
+        <div class="app-sub">Guessing game: where were these butterflies seen?</div>
+      </header>
+      <div id="content"><p class="sub">Loading butterfly records…</p></div>
+      <div id="announce" class="sr-only" aria-live="polite"></div>
+    </aside>
+    <main id="mapwrap">
+      <div id="map" role="application" aria-label="Map of British Columbia"></div>
+      <div id="bar" class="g-bar" hidden>
+        <span id="bar-msg"></span>
+        <button id="bar-btn" class="btn go" type="button"></button>
+      </div>
+    </main>
+  </div>
+
+  <script src="game.js"></script>
+
+</body>
+
+</html>
