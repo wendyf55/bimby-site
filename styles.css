@@ -1090,3 +1090,75 @@ details.about p {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Drawing an area ---------- */
+.leaflet-container.drawing,
+.leaflet-container.drawing .leaflet-grab,
+.leaflet-container.drawing .leaflet-interactive {
+  cursor: crosshair;
+}
+
+.btn.secondary.on {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+
+.draw-bar {
+  flex-wrap: wrap;
+  max-width: min(360px, calc(100vw - 80px));
+}
+
+.draw-bar .btns {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.map-banner button:disabled {
+  opacity: 0.45;
+  cursor: default;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.shape-handle {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  cursor: move;
+}
+
+.shape-handle::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s;
+}
+
+.shape-handle:hover::after,
+.leaflet-drag-target .shape-handle::after {
+  transform: scale(1.35);
+}
+
+.shape-handle.pulse::before {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: handle-pulse 1.6s ease-out 3;
+  opacity: 0;
+}
+
+@keyframes handle-pulse {
+  0% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shape-handle.pulse::before { animation: none; }
+}

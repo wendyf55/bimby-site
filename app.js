@@ -19,6 +19,7 @@ const ICON = {
   pin: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
   locate: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>',
   search: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg>',
+  shape: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18 8 5l11 4-3 10z"/><circle cx="5" cy="18" r="1.5"/><circle cx="8" cy="5" r="1.5"/><circle cx="19" cy="9" r="1.5"/><circle cx="16" cy="19" r="1.5"/></svg>',
   bars: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg>',
 };
 
@@ -27,6 +28,7 @@ const SOURCES = [
   { key: 'sg', file: 'data/observations-sg.json', label: 'Guppy & Shepard', short: 'G&S' },
   { key: 'inat', file: 'data/observations-inat.json', label: 'iNaturalist', short: 'iNat' },
 ];
+const SHAPE_MAX_CORNERS = 40;      // most corners a drawn area can have (keeps shared links short)
 const NEAR_MIN_KM_OBSCURED = 30;   // obscured iNat locations (blurred ~20 km) only count from this distance up
 let allObs = [], loaded = [], srcMeta = {};                // loaded = keys of sources that loaded
 
@@ -34,6 +36,7 @@ let allObs = [], loaded = [], srcMeta = {};                // loaded = keys of s
 let observations = [], plantIndex = {}, regions = [], allYears = [];
 const state = {
   point: null, place: '', radiusKm: 15, region: null,   // region = GeoJSON feature or null
+  shape: null,                                            // drawn area [[lat, lng], …]; replaces the circle when set
   scope: 'near',                                          // 'near' | 'region'
   q: '', month: '', sort: 'count', year: '',
   open: null, plantCat: 'host', listId: null,             // expanded card
@@ -98,7 +101,7 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   window.addEventListener('resize', () => { const w = root.style.getPropertyValue('--panel-w'); if (w) set(parseFloat(w)); else map.invalidateSize(); });
 })();
 const youIcon = L.divIcon({ className: '', html: '<div class="you-pin"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
-let youMarker = null, radiusCircle = null, regionLayer = null, dotLayer = null, postalLayer = null;
+let youMarker = null, nearLayer = null, regionLayer = null, dotLayer = null, postalLayer = null, handleLayer = null;
 const dotRenderer = L.canvas({ padding: 0.5 });
 
 const hint = L.control({ position: 'topright' });
@@ -107,7 +110,9 @@ hint.addTo(map);
 const banner = L.control({ position: 'topright' });
 banner.onAdd = () => { const d = L.DomUtil.create('div', 'map-banner'); L.DomEvent.disableClickPropagation(d); return d; };
 
-map.on('click', e => setPoint(e.latlng, null, true));
+map.on('click', e => draw ? addCorner(e.latlng) : setPoint(e.latlng, null, true));
+map.on('mousemove', e => { if (draw) { draw.cursor = e.latlng; updateGuide(); } });
+map.on('dblclick', () => { if (draw) finishDrawing(); });
 
 // Load data
 // First and last year among a source's record dates, e.g. ['1950', '2025']
@@ -175,7 +180,23 @@ function sourceHTML() {
       ? `<small>Warning - Duplicate Records Present - iNaturalist updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}</small>` : ''}</div>`;
 }
 // Obscured iNat locations are blurred by ~20 km, so they don't belong in small "near you" circles.
-const nearOK = o => !o.obscured || state.radiusKm >= NEAR_MIN_KM_OBSCURED;
+// A drawn area is treated like the circle with the same area (so ~2,830 km² and up counts them).
+const nearRadiusKm = () => state.shape ? Math.sqrt(shapeAreaKm2(state.shape) / Math.PI) : state.radiusKm;
+// Is a record inside the "near you" circle or drawn area?
+function nearFilter() {
+  const obscuredOK = nearRadiusKm() >= NEAR_MIN_KM_OBSCURED;
+  if (state.shape) {
+    const ring = state.shape.map(([lat, lng]) => [lng, lat]), [x0, y0, x1, y1] = shapeBox(state.shape);
+    // quick box check first, then the exact outline
+    return o => (obscuredOK || !o.obscured) && o.lng >= x0 && o.lng <= x1 && o.lat >= y0 && o.lat <= y1
+      && inRing(o.lng, o.lat, ring);
+  }
+  const r = state.radiusKm * 1000, p = state.point;
+  // quick box check first, then exact distance
+  const dLat = state.radiusKm / 111, dLng = dLat / Math.max(0.2, Math.cos(p.lat * Math.PI / 180));
+  return o => (obscuredOK || !o.obscured) && Math.abs(o.lat - p.lat) <= dLat && Math.abs(o.lng - p.lng) <= dLng
+    && map.distance(p, [o.lat, o.lng]) <= r;
+}
 
 // Which ecoregion is a point in? (ray casting on the outlines)
 function bboxOf(g) {
@@ -232,9 +253,37 @@ function segDist2(x, y, [ax, ay], [bx, by]) {
   return px * px + py * py;
 }
 
+// Drawn areas: corners are [lat, lng]. Areas use a flat projection around the shape's middle
+// latitude, which is accurate enough at backyard-to-region sizes.
+function shapeBox(pts) {
+  const lats = pts.map(p => p[0]), lngs = pts.map(p => p[1]);
+  return [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
+}
+function shapeAreaKm2(pts) {
+  const [, y0, , y1] = shapeBox(pts), kx = 111.32 * Math.cos((y0 + y1) / 2 * Math.PI / 180), ky = 110.57;
+  let a = 0;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += pts[j][1] * kx * pts[i][0] * ky - pts[i][1] * kx * pts[j][0] * ky;
+  return Math.abs(a) / 2;
+}
+// The shape's balance point (used for the place name and its ecoregion)
+function shapeCentre(pts) {
+  let a = 0, cx = 0, cy = 0;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [yj, xj] = pts[j], [yi, xi] = pts[i], f = xj * yi - xi * yj;
+    a += f; cx += (xj + xi) * f; cy += (yj + yi) * f;
+  }
+  if (Math.abs(a) < 1e-12) return { lat: pts.reduce((t, p) => t + p[0], 0) / pts.length, lng: pts.reduce((t, p) => t + p[1], 0) / pts.length };
+  return { lat: cy / (3 * a), lng: cx / (3 * a) };
+}
+const fmtArea = km2 => km2 < 10 ? km2.toFixed(1) : fmt(Math.round(km2));
+const nearWhere = () => state.shape ? 'in your drawn area' : `within ${state.radiusKm} km`;
+
 // Choosing a spot
-function setPoint(latlng, label, fromMapClick) {
+function setPoint(latlng, label, fromMapClick, shape = null) {
+  stopDrawing();
   state.point = L.latLng(latlng);
+  state.shape = shape;
+  if (shape) state.scope = 'near';
   state.place = label || '';
   state.region = regionAt(state.point);
   state.open = null; state.matches = null; state.message = ''; state.q = ''; state.placeQ = ''; refocusPlace = false;
@@ -248,7 +297,8 @@ function setPoint(latlng, label, fromMapClick) {
 function drawPlace(zoom) {
   postalLayer?.remove(); postalLayer = null;
   hint.remove();
-  youMarker?.remove(); radiusCircle?.remove(); regionLayer?.remove();
+  youMarker?.remove(); nearLayer?.remove(); regionLayer?.remove(); handleLayer?.remove(); shapeHint.remove();
+  youMarker = nearLayer = regionLayer = handleLayer = null;
   if (!state.point) { hint.addTo(map); return; }
   if (state.region) {
     regionLayer = L.geoJSON(state.region, {
@@ -256,16 +306,125 @@ function drawPlace(zoom) {
       style: { color: '#33472a', weight: 1.5, dashArray: '5 4', fillColor: '#33472a', fillOpacity: state.scope === 'region' ? 0.08 : 0.03 },
     }).addTo(map);
   }
-  radiusCircle = L.circle(state.point, {
-    radius: state.radiusKm * 1000, color: '#e79a3c', weight: 2, fillColor: '#e79a3c',
-    fillOpacity: state.scope === 'near' ? 0.12 : 0.04, interactive: false,
-  }).addTo(map);
-  youMarker = L.marker(state.point, { icon: youIcon, keyboard: false, interactive: false }).addTo(map);
+  const nearStyle = { color: '#e79a3c', weight: 2, fillColor: '#e79a3c', fillOpacity: state.scope === 'near' ? 0.12 : 0.04, interactive: false };
+  if (state.shape) {
+    nearLayer = L.polygon(state.shape, nearStyle).addTo(map);
+    if (!draw) drawHandles();
+  } else {
+    nearLayer = L.circle(state.point, { radius: state.radiusKm * 1000, ...nearStyle }).addTo(map);
+    youMarker = L.marker(state.point, { icon: youIcon, keyboard: false, interactive: false }).addTo(map);
+  }
   if (zoom) fitScope();
 }
+// Corner handles: drag a corner to reshape the drawn area
+// (a 28 px touch target around a smaller visible dot). Until someone has dragged a corner once,
+// the dots pulse and a map hint says they can be moved.
+const handleIcon = hinting => L.divIcon({ className: '', html: `<div class="shape-handle${hinting ? ' pulse' : ''}"></div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+let reshapedOnce = false;
+const shapeHint = L.control({ position: 'topright' });
+shapeHint.onAdd = () => { const d = L.DomUtil.create('div', 'map-hint'); d.textContent = 'Drag the dots to change your area'; return d; };
+function drawHandles() {
+  if (!reshapedOnce) shapeHint.addTo(map);
+  handleLayer = L.layerGroup(state.shape.map((pt, i) => {
+    const m = L.marker(pt, { icon: handleIcon(!reshapedOnce), draggable: true, keyboard: false, title: 'Drag to change your area' });
+    m.on('dragstart', () => { reshapedOnce = true; shapeHint.remove(); });
+    const moved = () => { const ll = m.getLatLng(), pts = state.shape.slice(); pts[i] = [+ll.lat.toFixed(3), +ll.lng.toFixed(3)]; return pts; };
+    m.on('drag', () => nearLayer.setLatLngs(moved()));
+    m.on('dragend', () => { const pts = moved(); setPoint(shapeCentre(pts), null, true, pts); });
+    return m;
+  })).addTo(map);
+}
+
+// Drawing an area: click to add corners; finish by clicking the first corner, double-clicking,
+// pressing Enter or the Finish button. Esc cancels, Backspace removes the last corner.
+let draw = null;   // { pts, cursor, sketch, guide, dots } while drawing
+const drawBar = L.control({ position: 'topright' });
+drawBar.onAdd = () => { const d = L.DomUtil.create('div', 'map-banner draw-bar'); L.DomEvent.disableClickPropagation(d); return d; };
+const SKETCH = { color: '#e79a3c', weight: 2, interactive: false };
+
+function startDrawing() {
+  if (draw) return;
+  draw = {
+    pts: [], cursor: null,
+    sketch: L.polygon([], { ...SKETCH, fillColor: '#e79a3c', fillOpacity: 0.12 }).addTo(map),
+    guide: L.polyline([], { ...SKETCH, dashArray: '5 5' }).addTo(map),
+    dots: L.layerGroup().addTo(map),
+  };
+  hint.remove(); handleLayer?.remove(); shapeHint.remove();
+  map.doubleClickZoom.disable();
+  map.getContainer().classList.add('drawing');
+  drawBar.addTo(map); updateDrawBar();
+  render();
+  document.getElementById('announce').textContent = 'Drawing an area. Click the map to add corners, then click the first corner to finish.';
+}
+function stopDrawing() {
+  if (!draw) return;
+  draw.sketch.remove(); draw.guide.remove(); draw.dots.remove(); draw = null;
+  drawBar.remove();
+  map.doubleClickZoom.enable();
+  map.getContainer().classList.remove('drawing');
+}
+function cancelDrawing() {
+  if (!draw) return;
+  stopDrawing();
+  if (state.point) drawPlace(false); else hint.addTo(map);   // put back the previous area's handles
+  render();
+}
+function finishDrawing() {
+  if (!draw || draw.pts.length < 3) return;
+  const pts = draw.pts.map(p => [+p.lat.toFixed(3), +p.lng.toFixed(3)]);   // ~100 m, same as shared links
+  setPoint(shapeCentre(pts), null, false, pts);
+}
+function addCorner(ll) {
+  const pts = draw.pts, px = p => map.latLngToContainerPoint(p);
+  if (pts.length >= 3 && px(pts[0]).distanceTo(px(ll)) < 12) return finishDrawing();   // clicked the first corner
+  if (pts.length && px(pts[pts.length - 1]).distanceTo(px(ll)) < 6) return;              // second click of a double-click
+  if (pts.length >= SHAPE_MAX_CORNERS) return;
+  pts.push(ll);
+  redrawSketch();
+}
+function undoCorner() {
+  if (!draw?.pts.length) return;
+  draw.pts.pop(); redrawSketch();
+}
+function redrawSketch() {
+  const pts = draw.pts;
+  // When redrawing, the old area disappears once the first new corner is placed (and comes back
+  // if every new corner is undone or the drawing is cancelled)
+  for (const l of [nearLayer, youMarker]) if (l) pts.length ? l.remove() : l.addTo(map);
+  draw.sketch.setLatLngs(pts.length >= 3 ? pts : []);
+  draw.dots.clearLayers();
+  pts.forEach((p, i) => L.circleMarker(p, {
+    radius: i === 0 && pts.length >= 3 ? 7 : 5, color: '#fff', weight: 2, fillColor: '#e79a3c', fillOpacity: 1, interactive: false,
+  }).addTo(draw.dots));
+  updateGuide(); updateDrawBar();
+}
+// Open edges while there are fewer than 3 corners, plus a dashed line to the pointer
+function updateGuide() {
+  const pts = draw.pts, last = pts[pts.length - 1], c = draw.cursor;
+  draw.guide.setLatLngs(!last ? [] : pts.length < 3 ? (c ? [...pts, c] : pts) : (c ? [last, c, pts[0]] : []));
+}
+function updateDrawBar() {
+  const d = drawBar.getContainer();
+  if (!d || !draw) return;
+  const n = draw.pts.length;
+  d.innerHTML = `<span>${n < 3 ? `Click the map to add corners (${n} of at least 3)`
+    : n >= SHAPE_MAX_CORNERS ? `That’s the most corners (${SHAPE_MAX_CORNERS})` : 'Click the first corner or Finish when done'}</span>
+    <span class="btns"><button type="button" data-d="undo" ${n ? '' : 'disabled'}>Undo</button>
+    <button type="button" data-d="finish" ${n >= 3 ? '' : 'disabled'}>Finish</button>
+    <button type="button" data-d="cancel">Cancel</button></span>`;
+  const act = { undo: undoCorner, finish: finishDrawing, cancel: cancelDrawing };
+  d.querySelectorAll('button').forEach(b => b.addEventListener('click', () => act[b.dataset.d]()));
+}
+document.addEventListener('keydown', e => {
+  if (!draw || e.target.closest?.('input, select, textarea')) return;
+  if (e.key === 'Escape') { e.preventDefault(); cancelDrawing(); }
+  else if (e.key === 'Enter') { e.preventDefault(); finishDrawing(); }
+  else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); undoCorner(); }
+});
 function fitScope() {
   if (!state.point) return;
-  const b = state.scope === 'region' && regionLayer ? regionLayer.getBounds() : radiusCircle.getBounds();
+  const b = state.scope === 'region' && regionLayer ? regionLayer.getBounds() : nearLayer.getBounds();
   map.fitBounds(b, { padding: [70, 70], maxZoom: 11 });   // leave some surroundings visible
 }
 
@@ -386,7 +545,8 @@ function useMyLocation() {
 }
 
 function resetPlace() {
-  state.point = null; state.region = null; state.open = null; state.place = '';
+  stopDrawing();
+  state.point = null; state.shape = null; state.region = null; state.open = null; state.place = '';
   showSpeciesOnMap(null);
   drawPlace(false);
   render();
@@ -401,11 +561,8 @@ function scopeObservations() {
     const id = state.region?.properties.id;
     obs = observations.filter(o => o._region === id && inYear(o));
   } else {
-    const r = state.radiusKm * 1000, p = state.point;
-    // quick box check first, then exact distance
-    const dLat = state.radiusKm / 111, dLng = dLat / Math.max(0.2, Math.cos(p.lat * Math.PI / 180));
-    obs = observations.filter(o => inYear(o) && nearOK(o) && Math.abs(o.lat - p.lat) <= dLat && Math.abs(o.lng - p.lng) <= dLng
-      && map.distance(p, [o.lat, o.lng]) <= r);
+    const near = nearFilter();
+    obs = observations.filter(o => inYear(o) && near(o));
   }
   const species = new Map();
   for (const o of obs) {
@@ -423,10 +580,7 @@ function scopeAllYears(scope) {
     const id = state.region?.properties.id;
     return id == null ? [] : observations.filter(o => o._region === id);
   }
-  const r = state.radiusKm * 1000, p = state.point;
-  const dLat = state.radiusKm / 111, dLng = dLat / Math.max(0.2, Math.cos(p.lat * Math.PI / 180));
-  return observations.filter(o => nearOK(o) && Math.abs(o.lat - p.lat) <= dLat && Math.abs(o.lng - p.lng) <= dLng
-    && map.distance(p, [o.lat, o.lng]) <= r);
+  return observations.filter(nearFilter());
 }
 function yearly(obs) {
   const idx = new Map(YEARS.map((y, i) => [y, i]));
@@ -439,6 +593,7 @@ function yearly(obs) {
 }
 function scopeLabel(scope) {
   return scope === 'region' ? `${esc(state.region.properties.name)} ecoregion`
+    : state.shape ? `Your drawn area (${fmtArea(shapeAreaKm2(state.shape))} km²)${state.place ? ` near ${esc(state.place)}` : ''}`
     : `Within ${state.radiusKm} km of ${esc(state.place || 'your spot')}`;
 }
 
@@ -513,7 +668,9 @@ function startHTML() {
     ${state.message ? `<p class="msg">${esc(state.message)}</p>` : ''}
     <div class="or">or</div>
     <button class="btn secondary full" type="button" id="locateBtn">${ICON.locate}<span>Use my location</span></button>
-    <p class="hint">You can also click anywhere on the map.</p>
+    <div class="or">or</div>
+    <button class="btn secondary full${draw ? ' on' : ''}" type="button" id="drawBtn" aria-pressed="${!!draw}">${ICON.shape}<span>${draw ? 'Cancel drawing' : 'Draw an area on the map'}</span></button>
+    <p class="hint">${draw ? 'Click the map to add corners. Click the first corner (or double-click) to finish.' : 'You can also click anywhere on the map.'}</p>
     ${total ? `<div class="canada">${sourceHTML()}<p style="margin:0">The map holds <b>${fmt(total)}</b> records of <b>${sp}</b> butterfly species from British Columbia
       (${activeSources().map(k => k === 'sg' ? 'Guppy &amp; Shepard, 2001' : 'iNaturalist observers').join(' and ')}).
       Seen a butterfly? <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">Join the BIMBY project on iNaturalist</a>.</p></div>` : ''}`;
@@ -521,17 +678,17 @@ function startHTML() {
 
 function resultsHTML() {
   const near = statsFor('near'), reg = state.region ? statsFor('region') : null;
-  const where = state.scope === 'near' ? `within ${state.radiusKm} km` : `in ${esc(state.region.properties.name)}`;
+  const where = state.scope === 'near' ? nearWhere() : `in ${esc(state.region.properties.name)}`;
   let html = `
     <div class="place">
-      ${ICON.pin}<span class="name" id="placeName">${esc(state.place || 'Your spot')}</span>
+      ${ICON.pin}<span class="name" id="placeName">${esc(state.place || (state.shape ? 'Your area' : 'Your spot'))}</span>
       <button class="link-btn" type="button" id="changeBtn">Change</button>
     </div>
     ${sourceHTML()}
     <div class="scope" role="group" aria-label="Show butterflies">
       <div class="tile" role="button" tabindex="0" data-scope="near" aria-pressed="${state.scope === 'near'}">
-        <div class="k">Near you</div>
-        <div class="t">Within <select id="radiusSel" aria-label="Distance">${RADII.map(r => `<option value="${r}" ${r === state.radiusKm ? 'selected' : ''}>${r} km</option>`).join('')}</select></div>
+        <div class="k">${state.shape ? 'Your area' : 'Near you'}</div>
+        <div class="t">${state.shape ? `${fmtArea(shapeAreaKm2(state.shape))} km² · <button class="link-btn" type="button" id="redrawBtn">Redraw</button>` : `Within <select id="radiusSel" aria-label="Distance">${RADII.map(r => `<option value="${r}" ${r === state.radiusKm ? 'selected' : ''}>${r} km</option>`).join('')}</select>`}</div>
         <div class="n">${near.species} <small>species</small></div>
         <div class="s">${plural(near.obs, 'sighting')}</div>
         <button class="trend-btn" type="button" data-trends="near" aria-expanded="${state.trends === 'near'}" aria-controls="trends">${ICON.bars}Trends by year</button>
@@ -581,7 +738,8 @@ function resultsHTML() {
         records under other licences are not shown); each map dot links to its observation, with the observer's name and licence.
         Thanks to the iNaturalist observers who shared them. Subspecies are counted under their species, and a few split species are
         grouped to match Guppy &amp; Shepard (e.g. iNaturalist's two Arctic Skippers count as one). Where an observer hid their exact location
-        (blurred by about 20 km), the sighting counts towards your ecoregion and the ${NEAR_MIN_KM_OBSCURED} km and ${RADII[RADII.length - 1]} km circles only.</p>` : ''}
+        (blurred by about 20 km), the sighting counts towards your ecoregion and the ${NEAR_MIN_KM_OBSCURED} km and ${RADII[RADII.length - 1]} km circles
+        (or drawn areas of at least ${fmt(Math.round(Math.PI * NEAR_MIN_KM_OBSCURED ** 2 / 10) * 10)} km²) only.</p>` : ''}
       <p>Descriptions come from Wikipedia and photos from iNaturalist photographers (credited on each butterfly).
         Plant lists come from the Xerces Society. Ecoregions: Agriculture and Agri-Food Canada.</p>
     </details>`;
@@ -591,13 +749,13 @@ function resultsHTML() {
 // The butterfly list (count line + cards). Re-rendered on its own while typing in the search box.
 function listHTML() {
   const rows = visibleSpecies();
-  const where = state.scope === 'near' ? `within ${state.radiusKm} km` : `in ${esc(state.region.properties.name)}`;
+  const where = state.scope === 'near' ? nearWhere() : `in ${esc(state.region.properties.name)}`;
   let html = `<div class="count-line">${plural(rows.length, 'butterfly species', 'butterfly species')} ${where}${state.month !== '' ? `, seen in ${MONTHS_LONG[+state.month]}` : ''}</div>`;
 
   if (!rows.length) {
     const nothing = scopeObservations().species.size === 0;
     html += `<div class="empty">${nothing
-      ? `No butterfly records ${where} yet. Try a bigger distance, switch to your ecoregion, or be the first:
+      ? `No butterfly records ${where} yet. Try a bigger ${state.shape ? 'area' : 'distance'}, switch to your ecoregion, or be the first:
          <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">add a sighting on iNaturalist</a>.`
       : state.month !== '' ? `None of these butterflies have been recorded ${where} in ${MONTHS_LONG[+state.month]} yet.
          <button class="link-btn" type="button" id="clearFly">Show all months</button>`
@@ -625,7 +783,7 @@ function detailHTML(s) {
   const lists = plantIndex[s.sci] || [];
   const list = lists.find(l => l.id === state.listId) || lists[0];
   const plants = list ? list.plants.filter(p => (state.plantCat === 'host') === !!p.isHost) : [];
-  const where = state.scope === 'near' ? `within ${state.radiusKm} km` : `in ${esc(state.region.properties.name)}`;
+  const where = state.scope === 'near' ? nearWhere() : `in ${esc(state.region.properties.name)}`;
   const total = observations.filter(o => o.scientificName === s.sci).length;
   const peak = s.months.indexOf(Math.max(...s.months));
   return `
@@ -691,7 +849,7 @@ function monthChart(months) {
 
 // One butterfly's sightings by year in the current scope (all years)
 function speciesYearsHTML(s) {
-  const where = state.scope === 'near' ? `within ${state.radiusKm} km` : `in ${esc(state.region.properties.name)}`;
+  const where = state.scope === 'near' ? nearWhere() : `in ${esc(state.region.properties.name)}`;
   const recs = yearly(scopeAllYears(state.scope).filter(o => o.scientificName === s.sci)).recs;
   const yrs = recs.filter(v => v > 0).length;
   return `
@@ -750,7 +908,7 @@ function renderTrends() {
     </header>
     <div class="tr-body">
       ${state.region ? `<div class="seg" role="group" aria-label="Area">
-        <button type="button" data-tscope="near" aria-pressed="${sc === 'near'}">Near you (${state.radiusKm} km)</button>
+        <button type="button" data-tscope="near" aria-pressed="${sc === 'near'}">${state.shape ? 'Your area' : `Near you (${state.radiusKm} km)`}</button>
         <button type="button" data-tscope="region" aria-pressed="${sc === 'region'}">Your ecoregion</button>
       </div>` : ''}
       ${!obs.length ? `<p class="note">No butterfly records here yet.</p>` : `
@@ -793,7 +951,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.tren
 
 function renderPlaceName() {
   const el = document.getElementById('placeName');
-  if (el) el.textContent = state.place || 'Your spot';
+  if (el) el.textContent = state.place || (state.shape ? 'Your area' : 'Your spot');
 }
 
 // Events
@@ -803,6 +961,8 @@ function wire(box) {
   on('#placeForm', 'submit', e => { e.preventDefault(); searchPlace(box.querySelector('#placeInput').value); });
   box.querySelectorAll('[data-match]').forEach(b => b.addEventListener('click', () => pickMatch(+b.dataset.match)));
   on('#locateBtn', 'click', useMyLocation);
+  on('#drawBtn', 'click', () => draw ? cancelDrawing() : startDrawing());
+  on('#redrawBtn', 'click', e => { e.stopPropagation(); startDrawing(); });
   on('#changeBtn', 'click', resetPlace);
 
   const pickScope = t => {
@@ -811,7 +971,7 @@ function wire(box) {
     drawPlace(false); fitScope(); render();
   };
   box.querySelectorAll('.tile').forEach(t => {
-    t.addEventListener('click', e => { if (!e.target.closest('select, .trend-btn')) pickScope(t); });
+    t.addEventListener('click', e => { if (!e.target.closest('select, .trend-btn, #redrawBtn')) pickScope(t); });
     t.addEventListener('keydown', e => {
       if ((e.key === 'Enter' || e.key === ' ') && e.target === t) { e.preventDefault(); pickScope(t); }
     });
@@ -884,13 +1044,16 @@ function drawSpeciesDots(zoom) {
   d.querySelector('button').addEventListener('click', () => showSpeciesOnMap(null));
 }
 
-// Shareable link: #at=lat,lng&r=15&view=region&year=2023&month=6&sp=Papilio+rutulus&src=inat
+// Shareable link: #at=lat,lng&r=15 (or #poly=lat,lng;lat,lng;… for a drawn area)&view=region&year=2023&month=6&sp=Papilio+rutulus&src=inat
 function updateHash() {
   const parts = [];
   if (state.point) {
     // ~100 m: close enough to show the same results, without pinpointing someone's house
-    parts.push(`at=${state.point.lat.toFixed(3)},${state.point.lng.toFixed(3)}`);
-    if (state.radiusKm !== 15) parts.push(`r=${state.radiusKm}`);
+    if (state.shape) parts.push(`poly=${state.shape.map(([lat, lng]) => `${lat.toFixed(3)},${lng.toFixed(3)}`).join(';')}`);
+    else {
+      parts.push(`at=${state.point.lat.toFixed(3)},${state.point.lng.toFixed(3)}`);
+      if (state.radiusKm !== 15) parts.push(`r=${state.radiusKm}`);
+    }
     if (state.scope === 'region') parts.push('view=region');
     if (state.year) parts.push(`year=${state.year}`);
     if (state.month !== '') parts.push(`month=${+state.month + 1}`);   // 1 = January
@@ -904,17 +1067,20 @@ function restoreFromHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   const src = (h.get('src') || '').split(',').filter(k => loaded.includes(k));
   if (src.length && src.length < loaded.length) { state.sources = src; applySources(); }
-  const at = (h.get('at') || '').split(',').map(Number);
-  if (at.length !== 2 || at.some(isNaN)) return false;
   // Only spots in the pannable area (BC plus a margin) are accepted from a link
   const [[latMin, lngMin], [latMax, lngMax]] = VIEW_BOUNDS;
-  if (at[0] < latMin || at[0] > latMax || at[1] < lngMin || at[1] > lngMax) return false;
+  const ok = p => p.length === 2 && !p.some(isNaN) && p[0] >= latMin && p[0] <= latMax && p[1] >= lngMin && p[1] <= lngMax;
+  const at = (h.get('at') || '').split(',').map(Number);
+  const poly = (h.get('poly') || '').split(';').filter(Boolean).map(p => p.split(',').map(Number));
+  const shape = poly.length >= 3 && poly.length <= SHAPE_MAX_CORNERS && poly.every(ok) ? poly : null;
+  if (!shape && !ok(at)) return false;
   if (RADII.includes(+h.get('r'))) state.radiusKm = +h.get('r');
   if (h.get('view') === 'region') state.scope = 'region';
   if (allYears.includes(h.get('year'))) state.year = h.get('year');
   const m = +h.get('month');
   if (m >= 1 && m <= 12) state.month = String(m - 1);
-  setPoint({ lat: at[0], lng: at[1] }, null, false);
+  if (shape) setPoint(shapeCentre(shape), null, false, shape);
+  else setPoint({ lat: at[0], lng: at[1] }, null, false);
   const sp = h.get('sp');
   if (sp && scopeObservations().species.has(sp)) {
     state.open = sp; render();
