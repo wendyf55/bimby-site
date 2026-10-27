@@ -605,7 +605,7 @@ function yearly(obs) {
 function scopeLabel(scope) {
   return scope === 'region' ? `${esc(state.region.properties.name)} ecoregion`
     : state.shape ? `Your drawn area (${fmtArea(shapeAreaKm2(state.shape))} km²)${state.place ? ` near ${esc(state.place)}` : ''}`
-    : `Within ${state.radiusKm} km of ${esc(state.place || 'your spot')}`;
+      : `Within ${state.radiusKm} km of ${esc(state.place || 'your spot')}`;
 }
 
 function statsFor(scope) {
@@ -668,7 +668,7 @@ function startHTML() {
   const total = observations.length, sp = new Set(observations.map(o => o.scientificName)).size;
   return `
     <h2 class="lead">Where is your backyard?</h2>
-    <p class="sub">Find out which butterflies have been seen near you, when they fly, and which plants help them.</p>
+    <p class="sub">Find out which butterflies have been seen near you, when they fly, and which they are associated with.</p>
     <form class="search" id="placeForm" role="search">
       <label class="sr-only" for="placeInput">Town, city or postal code</label>
       <input id="placeInput" type="search" placeholder="Town, city or postal code" autocomplete="off" value="${esc(state.placeQ)}">
