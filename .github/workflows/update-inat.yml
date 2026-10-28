@@ -36,9 +36,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -46,14 +46,14 @@ jobs:
         run: pip install -r .github/requirements-ci.txt   # exact versions; Dependabot proposes updates
 
       - name: Restore the iNaturalist cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: data/inat/cache.jsonl
           key: inat-cache-${{ github.run_id }}
           restore-keys: inat-cache-
 
       - name: Restore an unfinished full pull, if any
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: data/inat/partial.jsonl
           key: inat-partial-${{ github.run_id }}
@@ -66,7 +66,7 @@ jobs:
       # --- Pull not finished yet: keep progress, start the next run, stop here ---
       - name: Keep progress for the next run
         if: steps.fetch.outputs.partial == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: data/inat/partial.jsonl
           key: inat-partial-${{ github.run_id }}-${{ github.run_attempt }}
@@ -80,7 +80,7 @@ jobs:
       # --- Pull finished: keep the new cache, build and commit ---
       - name: Save the iNaturalist cache
         if: steps.fetch.outputs.partial != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: data/inat/cache.jsonl
           key: inat-cache-${{ github.run_id }}-${{ github.run_attempt }}
