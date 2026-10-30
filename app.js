@@ -21,6 +21,7 @@ const ICON = {
   search: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg>',
   shape: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18 8 5l11 4-3 10z"/><circle cx="5" cy="18" r="1.5"/><circle cx="8" cy="5" r="1.5"/><circle cx="19" cy="9" r="1.5"/><circle cx="16" cy="19" r="1.5"/></svg>',
   bars: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg>',
+  flower: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="2.2"/><path d="M12 7.8a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 1 1 0 5.2zM12 12.2a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 1 0 0-5.2zM9.8 10a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 1 1 5.2 0zM14.2 10a2.6 2.6 0 1 0 5.2 0 2.6 2.6 0 1 0-5.2 0zM12 17.4V22"/></svg>',
 };
 
 // Data sources (one file each, built by scripts/build_*.py)
@@ -39,10 +40,13 @@ const state = {
   shape: null,                                            // drawn area [[lat, lng], …]; replaces the circle when set
   scope: 'near',                                          // 'near' | 'region'
   q: '', month: '', sort: 'count', year: '',
-  open: null, plantCat: 'host', listId: null,             // expanded card
+  open: null, plantCat: 'nectar', listId: null,           // expanded card
+  flowersAll: false,                                      // butterfly detail: show every flower, not just the top few
   mapped: null,                                           // species shown as dots
   matches: null, message: '', showEcoInfo: false, placeQ: '',   // placeQ = text in the place search box
   trends: null,                                           // 'near' | 'region' when the trends drawer is open
+  flowers: false,                                         // the BC-wide flowers drawer is open
+  fl: { sort: 'count', native: false, open: null, all: false },   // flowers drawer: sort, native only, expanded plant, show all
   secOpen: { months: true, years: true },                 // collapsible sections in a butterfly's detail
   sources: null,                                          // keys of sources shown (null = all loaded)
 };
@@ -133,7 +137,9 @@ Promise.all([
   fetch('data/plant-lists.json').then(r => r.json()),
   fetch('data/ecoregions.geojson').then(r => r.json()),
   SpeciesInfo.load(),
-]).then(([sources, lists, geo]) => {
+  fetch('data/plant-visits.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .catch(err => { console.warn('Flower data not loaded', err); return null; }),
+]).then(([sources, lists, geo, , visits]) => {
   for (const s of sources.filter(Boolean)) {
     const { src, d } = s, f = Object.fromEntries(d.fields.map((k, i) => [k, i]));
     srcMeta[src.key] = { asOf: d.asOf || d.built, count: d.rows.length, years: yearRange(d.rows.map(r => r[f.date])) };
@@ -149,9 +155,11 @@ Promise.all([
   }
   if (!allObs.length) throw new Error('no observation data');
   for (const l of lists) (plantIndex[l.butterfly.scientificName] ??= []).push(l);
+  if (visits) flowers = buildFlowers(visits);
   regions = geo.features.map(f => ({ f, bbox: bboxOf(f.geometry) }));
   applySources();
   if (!restoreFromHash()) render();
+  renderFlowers();
 }).catch(err => {
   document.getElementById('content').innerHTML = '<p class="empty">Sorry, the butterfly data could not be loaded.</p>';
   console.error(err);
@@ -684,8 +692,12 @@ function startHTML() {
     <p class="hint">${draw ? 'Click the map to add corners. Click the first corner (or double-click) to finish.' : 'You can also click anywhere on the map.'}</p>
     ${total ? `<div class="canada">${sourceHTML()}<p style="margin:0">The map holds <b>${fmt(total)}</b> records of <b>${sp}</b> butterfly species from British Columbia
       (${activeSources().map(k => k === 'sg' ? 'Guppy &amp; Shepard, 2001' : 'iNaturalist observers').join(' and ')}).
-      Seen a butterfly? <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">Join the BIMBY project on iNaturalist</a>.</p></div>` : ''}`;
+      Seen a butterfly? <a href="${INAT_PROJECT}" target="_blank" rel="noopener" style="color:var(--link)">Join the BIMBY project on iNaturalist</a>.</p>
+      ${flowersButton()}</div>` : ''}`;
 }
+
+const flowersButton = () => flowers ? `<div class="fl-open"><button class="trend-btn" type="button" data-flowers
+  aria-expanded="${state.flowers}" aria-controls="flowers">${ICON.flower}Flowers butterflies visit in BC</button></div>` : '';
 
 function resultsHTML() {
   const near = statsFor('near'), reg = state.region ? statsFor('region') : null;
@@ -711,6 +723,7 @@ function resultsHTML() {
         <button class="trend-btn" type="button" data-trends="region" aria-expanded="${state.trends === 'region'}" aria-controls="trends">${ICON.bars}Trends by year</button>` : ''}
       </div>
     </div>
+    ${flowersButton()}
     <button class="link-btn" type="button" id="ecoInfo" aria-expanded="${state.showEcoInfo}" style="font-size:13px;margin-bottom:6px">What’s an ecoregion?</button>
     ${state.showEcoInfo ? `<p class="explain">An <b>ecoregion</b> is a natural area with similar climate, landforms, plants and wildlife.
       Canada has 194 of them${state.region ? `; yours is part of the <b>${esc(state.region.properties.zoneName)}</b> ecozone` : ''}.
@@ -753,6 +766,13 @@ function resultsHTML() {
         (or drawn areas of at least ${fmt(Math.round(Math.PI * NEAR_MIN_KM_OBSCURED ** 2 / 10) * 10)} km²) only.</p>` : ''}
       <p>Descriptions come from Wikipedia and photos from iNaturalist photographers (credited on each butterfly).
         Plant lists come from the Xerces Society. Ecoregions: Agriculture and Agri-Food Canada.</p>
+      ${flowers ? `<p>Flower records (${flowerYears()}) are research-grade iNaturalist observations of butterflies feeding at flowers in
+        British Columbia, where the flower was also identified to species and research grade, used under the observer's
+        licence (CC0, CC BY or CC BY-NC). They are counted for all of BC together.${flowers.hasStatus ? ` Native status comes from
+        Brouillet, L., Desmet, P., Coursol, F., Meades, S.J., Favreau, M., Anions, M., Bélisle, P., Gendreau, C., Shorthouse, D.
+        and contributors (2010+). <i>Database of Vascular Plants of Canada (VASCAN)</i>.
+        <a href="https://data.canadensys.net/vascan" target="_blank" rel="noopener" style="color:var(--link)">data.canadensys.net/vascan</a>
+        (consulted on ${fmtDate(flowers.built)}).` : ''}</p>` : ''}
     </details>`;
   return html;
 }
@@ -819,18 +839,14 @@ function detailHTML(s) {
 
       ${speciesYearsHTML(s)}
 
-      <h4 style="margin-top:22px">Plants for your garden</h4>
+      <h4 style="margin-top:22px">Plants it uses</h4>
       <div class="seg" role="group" aria-label="Plant type">
         <button type="button" data-cat="host" aria-pressed="${state.plantCat === 'host'}">Caterpillar food (host)</button>
         <button type="button" data-cat="nectar" aria-pressed="${state.plantCat === 'nectar'}">Adult food (nectar)</button>
       </div>
-      ${!list ? `<p class="note">We don’t have a plant list for this butterfly yet.</p>` : `
-        ${lists.length > 1 ? `<select class="list-select" id="listSel" aria-label="Plant list">${lists.map(l =>
-        `<option value="${esc(l.id)}" ${l === list ? 'selected' : ''}>${esc(l.region)} — ${esc(shortSource(l.source.org))} (${esc(l.source.year)})</option>`).join('')}</select>`
-        : `<p class="note" style="margin-bottom:6px">List for: ${esc(list.region)}</p>`}
-        ${plants.length ? `<ul class="plants">${plants.map(p => `<li><span>${esc(p.commonName)} <i>${esc(p.scientificName)}</i></span>${p.bloom ? `<span class="bloom">Blooms ${esc(p.bloom)}</span>` : ''}</li>`).join('')}</ul>`
-        : `<p class="note">None listed as ${state.plantCat === 'host' ? 'host' : 'nectar'} plants in this list.</p>`}
-        <p class="cite">Source: <a href="${esc(list.source.url)}" target="_blank" rel="noopener">${esc(list.source.title)}</a>, ${esc(shortSource(list.source.org))} (${esc(list.source.year)}).</p>`}
+      ${state.plantCat === 'host'
+      ? (list ? xercesHTML(lists, list, plants) : `<p class="note">We don’t have a host plant list for this butterfly yet.</p>`)
+      : `${flowersForHTML(s)}${list && plants.length ? `<h5 class="plants-sub">Xerces Society nectar plant list</h5>${xercesHTML(lists, list, plants)}` : ''}`}
 
       <div class="map-row">
         <button class="btn ${state.mapped === s.sci ? 'secondary' : 'primary'}" type="button" id="mapBtn">
@@ -840,6 +856,164 @@ function detailHTML(s) {
     </article>`;
 }
 function shortSource(org) { return /xerces/i.test(org) ? 'Xerces Society' : org; }
+// A Xerces Society plant list (host or nectar plants, already filtered)
+function xercesHTML(lists, list, plants) {
+  return `
+    ${lists.length > 1 ? `<select class="list-select" id="listSel" aria-label="Plant list">${lists.map(l =>
+    `<option value="${esc(l.id)}" ${l === list ? 'selected' : ''}>${esc(l.region)} — ${esc(shortSource(l.source.org))} (${esc(l.source.year)})</option>`).join('')}</select>`
+      : `<p class="note" style="margin-bottom:6px">List for: ${esc(list.region)}</p>`}
+    ${plants.length ? `<ul class="plants">${plants.map(p => `<li><span>${esc(p.commonName)} <i>${esc(p.scientificName)}</i></span>${p.bloom ? `<span class="bloom">Blooms ${esc(p.bloom)}</span>` : ''}</li>`).join('')}</ul>`
+      : `<p class="note">None listed as ${state.plantCat === 'host' ? 'host' : 'nectar'} plants in this list.</p>`}
+    <p class="cite">Source: <a href="${esc(list.source.url)}" target="_blank" rel="noopener">${esc(list.source.title)}</a>, ${esc(shortSource(list.source.org))} (${esc(list.source.year)}).</p>`;
+}
+
+// ---------- Flowers butterflies were seen at (iNaturalist photos, all of BC) ----------
+// data/plant-visits.json, built by scripts/build_plant_visits.py. Counts are BC-wide on purpose:
+// there are too few records to say much about any one area.
+let flowers = null;
+const FLOWERS_FIRST = 8;          // flowers shown in a butterfly's detail before "Show all"
+const FLOWERS_DRAWER_FIRST = 25;  // flowers shown in the drawer before "Show all"
+const NATIVE_STATUS = ['native', 'extirpated'];                          // VASCAN statuses for BC
+const NOT_NATIVE_STATUS = ['introduced', 'ephemeral', 'absent', 'excluded'];
+const isNative = st => NATIVE_STATUS.includes(st);
+const plantName = p => p.common || p.sci;
+
+function buildFlowers(d) {
+  const plants = d.plants.map(([sci, common, family, status]) =>
+    ({ sci, common, family, status, n: 0, people: new Set(), butterflies: new Map() }));
+  const byButterfly = {};   // butterfly sci -> Map(plant index -> { plant, n, people })
+  for (const [b, p, , person] of d.rows) {
+    const plant = plants[p];
+    plant.n++; plant.people.add(person);
+    plant.butterflies.set(b, (plant.butterflies.get(b) || 0) + 1);
+    const forB = byButterfly[d.butterflies[b][0]] ??= new Map();
+    const x = forB.get(p) || { plant, n: 0, people: new Set() };
+    x.n++; x.people.add(person); forB.set(p, x);
+  }
+  const byCount = (a, b) => b.n - a.n || b.people.size - a.people.size || plantName(a.plant || a).localeCompare(plantName(b.plant || b));
+  const sorted = {};
+  for (const [sci, m] of Object.entries(byButterfly)) sorted[sci] = [...m.values()].sort(byCount);
+  return {
+    plants: plants.filter(p => p.n).sort(byCount), butterflies: d.butterflies, byButterfly: sorted,
+    total: d.rows.length, years: d.years, built: d.built, hasStatus: plants.some(p => p.status),
+  };
+}
+const flowerYears = () => flowers.years[0] === flowers.years[1] ? flowers.years[0] : flowers.years.join('–');
+
+function nativeTag(status) {
+  if (isNative(status)) return '<span class="tag native" title="Native to British Columbia (VASCAN)">Native</span>';
+  if (NOT_NATIVE_STATUS.includes(status)) return `<span class="tag intro" title="${status === 'absent'
+    ? 'Not established in the wild in British Columbia (VASCAN)' : 'Introduced to British Columbia (VASCAN)'}">Not native</span>`;
+  return '';
+}
+const seenText = (n, people) => `Seen ${plural(n, 'time')} by ${plural(people, 'person', 'people')}`;
+
+// Option 1: in a butterfly's detail, under "Adult food (nectar)"
+function flowersForHTML(s) {
+  if (!flowers) return '';
+  const list = flowers.byButterfly[s.sci] || [];
+  if (!list.length) return `<p class="note">No flower records for this butterfly yet.</p>`;
+  const shown = state.flowersAll ? list : list.slice(0, FLOWERS_FIRST);
+  const total = list.reduce((sum, x) => sum + x.n, 0);
+  return `
+    <h5 class="plants-sub">Flowers it has been seen feeding at</h5>
+    <p class="chart-sub">All of British Columbia, ${flowerYears()} · ${plural(total, 'record')} on ${plural(list.length, 'kind')} of flower</p>
+    <ul class="plants flowers">${shown.map(x => `
+      <li><span class="fl-name">${esc(plantName(x.plant))} ${nativeTag(x.plant.status)}<i>${esc(x.plant.sci)}</i></span>
+        <span class="bloom">${seenText(x.n, x.people.size)}</span></li>`).join('')}
+    </ul>
+    ${list.length > FLOWERS_FIRST ? `<button class="link-btn more-btn" type="button" id="flowersAll">${state.flowersAll ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
+    <p class="cite">From research-grade iNaturalist photos of butterflies feeding at flowers. Counts show where people
+      looked and took photos, not which flowers butterflies like best.
+      <button class="link-btn" type="button" data-flowers>See all flowers in BC</button></p>`;
+}
+
+// Option 2: drawer with every flower in BC, ranked
+function flowersDrawerHTML() {
+  const f = flowers, o = state.fl;
+  let list = o.native ? f.plants.filter(p => isNative(p.status)) : f.plants;
+  if (o.sort === 'kinds') list = [...list].sort((a, b) => b.butterflies.size - a.butterflies.size || b.n - a.n);
+  const shown = o.all ? list : list.slice(0, FLOWERS_DRAWER_FIRST);
+  const known = f.plants.filter(p => p.status);
+  const knownN = known.reduce((sum, p) => sum + p.n, 0);
+  const nativeN = known.filter(p => isNative(p.status)).reduce((sum, p) => sum + p.n, 0);
+  const nameOf = b => f.butterflies[b][1] || f.butterflies[b][0];
+  return `
+    <div class="tr-stats">
+      <div><b>${fmt(f.total)}</b><span>butterflies seen at flowers</span></div>
+      <div><b>${fmt(f.plants.length)}</b><span>kinds of flowers</span></div>
+      ${f.hasStatus && knownN ? `<div><b>${Math.round(100 * nativeN / knownN)}%</b><span>of records on native plants</span></div>`
+      : `<div><b>${flowerYears()}</b><span>years recorded</span></div>`}
+    </div>
+    <div class="fl-controls">
+      <div class="seg" role="group" aria-label="Sort flowers">
+        <button type="button" data-flsort="count" aria-pressed="${o.sort === 'count'}">Most sightings</button>
+        <button type="button" data-flsort="kinds" aria-pressed="${o.sort === 'kinds'}">Most kinds of butterflies</button>
+      </div>
+      ${f.hasStatus ? `<label class="fl-check"><input type="checkbox" id="flNative" ${o.native ? 'checked' : ''}> Native plants only</label>` : ''}
+    </div>
+    <ol class="fl-list">${shown.map((p, i) => {
+      const open = o.open === p.sci;
+      const bf = [...p.butterflies].sort((a, b) => b[1] - a[1] || nameOf(a[0]).localeCompare(nameOf(b[0])));
+      return `
+      <li class="fl-row${open ? ' open' : ''}">
+        <button type="button" class="fl-head" data-plant="${esc(p.sci)}" aria-expanded="${open}">
+          <span class="rank">${i + 1}</span>
+          <span class="fl-main">
+            <span class="fl-name">${esc(plantName(p))} ${nativeTag(p.status)}<i>${esc(p.sci)}</i></span>
+            <span class="fl-nums">${seenText(p.n, p.people.size)} · ${plural(p.butterflies.size, 'kind')} of butterfly</span>
+          </span>
+        </button>
+        ${open ? `<ul class="fl-bf" aria-label="Butterflies seen at ${esc(plantName(p))}">${bf.map(([b, n]) =>
+        `<li><span>${esc(nameOf(b))}</span><span class="n">${fmt(n)}</span></li>`).join('')}</ul>` : ''}
+      </li>`;
+    }).join('')}
+    </ol>
+    ${list.length > FLOWERS_DRAWER_FIRST ? `<button class="link-btn more-btn" type="button" id="flAll">${o.all ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
+    <p class="note">These are flowers where people photographed butterflies feeding, across British Columbia, ${flowerYears()}.
+      Common plants along roads and in fields show up often because they are everywhere and easy to find, not because
+      butterflies like them best. This is not a planting list.</p>
+    <p class="cite">Records: research-grade iNaturalist observations (CC0, CC BY or CC BY-NC), &copy; their observers.
+      ${f.hasStatus ? `Native status: <a href="https://data.canadensys.net/vascan" target="_blank" rel="noopener">VASCAN</a>, the Database of Vascular Plants of Canada.` : ''}</p>`;
+}
+
+function renderFlowers() {
+  const el = document.getElementById('flowers');
+  if (!flowers) state.flowers = false;
+  el.classList.toggle('open', state.flowers);
+  el.setAttribute('aria-hidden', String(!state.flowers));
+  document.querySelectorAll('[data-flowers]').forEach(b => b.setAttribute('aria-expanded', String(state.flowers)));
+  if (!state.flowers) return;
+  const scroll = el.querySelector('.tr-body')?.scrollTop || 0;
+  el.innerHTML = `
+    <header class="tr-head">
+      <div class="ttl"><h2>Flowers butterflies visit</h2><div class="where">All of British Columbia · ${flowerYears()}</div></div>
+      <button class="close-btn" type="button" id="closeFlowers">Close</button>
+    </header>
+    <div class="tr-body">${flowersDrawerHTML()}</div>`;
+  el.querySelector('.tr-body').scrollTop = scroll;
+  const redraw = () => { updateHash(); renderFlowers(); };
+  el.querySelector('#closeFlowers').addEventListener('click', closeFlowers);
+  el.querySelectorAll('[data-flsort]').forEach(b => b.addEventListener('click', () => { state.fl.sort = b.dataset.flsort; redraw(); }));
+  el.querySelector('#flNative')?.addEventListener('change', e => { state.fl.native = e.target.checked; redraw(); });
+  el.querySelector('#flAll')?.addEventListener('click', () => { state.fl.all = !state.fl.all; redraw(); });
+  el.querySelectorAll('[data-plant]').forEach(b => b.addEventListener('click', () => {
+    state.fl.open = state.fl.open === b.dataset.plant ? null : b.dataset.plant; renderFlowers();
+    el.querySelector(`[data-plant="${CSS.escape(b.dataset.plant)}"]`)?.focus({ preventScroll: true });
+  }));
+}
+function openFlowers(opener) {
+  flowersOpener = opener;
+  state.flowers = !state.flowers;
+  if (state.flowers && state.trends) { state.trends = null; renderTrends(); }
+  updateHash(); renderFlowers();
+  if (state.flowers) document.getElementById('closeFlowers')?.focus({ preventScroll: true });
+}
+let flowersOpener = null;
+function closeFlowers() {
+  state.flowers = false; updateHash(); renderFlowers();
+  (flowersOpener?.isConnected ? flowersOpener : document.querySelector('[data-flowers]'))?.focus();
+}
 
 function monthChart(months) {
   const W = 400, H = 110, padL = 30, padB = 20, padT = 8, iw = W - padL - 4, ih = H - padB - padT;
@@ -948,9 +1122,11 @@ function renderTrends() {
 (function () {
   const mq = window.matchMedia('(max-width: 800px)');
   const place = () => {
-    const el = document.getElementById('trends');
     const home = mq.matches ? document.body : document.getElementById('mapwrap');
-    if (el.parentNode !== home) home.prepend(el);
+    for (const id of ['trends', 'flowers']) {
+      const el = document.getElementById(id);
+      if (el.parentNode !== home) home.prepend(el);
+    }
   };
   place(); mq.addEventListener('change', place);
 })();
@@ -958,7 +1134,11 @@ function closeTrends() {
   const was = state.trends; state.trends = null; renderTrends();
   document.querySelector(`.trend-btn[data-trends="${was}"]`)?.focus();
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.trends) closeTrends(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (state.trends) closeTrends();
+  else if (state.flowers) closeFlowers();
+});
 
 function renderPlaceName() {
   const el = document.getElementById('placeName');
@@ -995,9 +1175,12 @@ function wire(box) {
   box.querySelectorAll('.trend-btn').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
     state.trends = state.trends === b.dataset.trends ? null : b.dataset.trends;
+    if (state.trends && state.flowers) { state.flowers = false; updateHash(); renderFlowers(); }
     renderTrends();
     if (state.trends) document.getElementById('closeTrends')?.focus({ preventScroll: true });
   }));
+  box.querySelectorAll('[data-flowers]').forEach(b => b.addEventListener('click', () => openFlowers(b)));
+  on('#flowersAll', 'click', () => { state.flowersAll = !state.flowersAll; render(); });
   box.querySelectorAll('details.sec').forEach(d => d.addEventListener('toggle', () => { state.secOpen[d.dataset.sec] = d.open; }));
 
   const q = box.querySelector('#qInput');
@@ -1008,7 +1191,7 @@ function wire(box) {
   on('#yearSel', 'change', e => { state.year = e.target.value; scopeCache = null; state.open = null; render(); drawSpeciesDots(false); });
 
   box.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => {
-    state.open = c.dataset.sci; state.listId = null;
+    state.open = c.dataset.sci; state.listId = null; state.flowersAll = false;
     if (state.mapped && state.mapped !== state.open) { state.mapped = null; drawSpeciesDots(false); }   // clear the previous butterfly's dots
     render();
     const d = document.getElementById('detail');
@@ -1071,6 +1254,7 @@ function updateHash() {
     if (state.open) parts.push(`sp=${encodeURIComponent(state.open).replace(/%20/g, '+')}`);
   }
   if (state.sources) parts.push(`src=${state.sources.join(',')}`);
+  if (state.flowers) parts.push('flowers=1');
   const s = parts.join('&');
   history.replaceState(null, '', location.pathname + location.search + (s ? '#' + s : ''));
 }
@@ -1078,6 +1262,7 @@ function restoreFromHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   const src = (h.get('src') || '').split(',').filter(k => loaded.includes(k));
   if (src.length && src.length < loaded.length) { state.sources = src; applySources(); }
+  if (h.get('flowers') === '1' && flowers) state.flowers = true;
   // Only spots in the pannable area (BC plus a margin) are accepted from a link
   const [[latMin, lngMin], [latMax, lngMax]] = VIEW_BOUNDS;
   const ok = p => p.length === 2 && !p.some(isNaN) && p[0] >= latMin && p[0] <= latMax && p[1] >= lngMin && p[1] <= lngMax;
