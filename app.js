@@ -772,7 +772,7 @@ function resultsHTML() {
         Brouillet, L., Desmet, P., Coursol, F., Meades, S.J., Favreau, M., Anions, M., Bélisle, P., Gendreau, C., Shorthouse, D.
         and contributors (2010+). <i>Database of Vascular Plants of Canada (VASCAN)</i>.
         <a href="https://data.canadensys.net/vascan" target="_blank" rel="noopener" style="color:var(--link)">data.canadensys.net/vascan</a>
-        (consulted on ${fmtDate(flowers.built)}).` : ''}</p>` : ''}
+        (version 37.17, 4 August 2026).` : ''}</p>` : ''}
     </details>`;
   return html;
 }
@@ -867,14 +867,15 @@ function xercesHTML(lists, list, plants) {
     <p class="cite">Source: <a href="${esc(list.source.url)}" target="_blank" rel="noopener">${esc(list.source.title)}</a>, ${esc(shortSource(list.source.org))} (${esc(list.source.year)}).</p>`;
 }
 
-// ---------- Flowers butterflies were seen at (iNaturalist photos, all of BC) ----------
-// data/plant-visits.json, built by scripts/build_plant_visits.py. Counts are BC-wide on purpose:
-// there are too few records to say much about any one area.
+// Flowers butterflies were seen at (iNaturalist photos, all of BC)
+// data/plant-visits.json, built by scripts/build_plant_visits.py. Counts are BC-wide 
 let flowers = null;
 const FLOWERS_FIRST = 8;          // flowers shown in a butterfly's detail before "Show all"
 const FLOWERS_DRAWER_FIRST = 25;  // flowers shown in the drawer before "Show all"
 const NATIVE_STATUS = ['native', 'extirpated'];                          // VASCAN statuses for BC
-const NOT_NATIVE_STATUS = ['introduced', 'ephemeral', 'absent', 'excluded'];
+// Only what VASCAN says is introduced gets "Not native". 'absent', 'excluded', 'doubtful'
+// and 'mixed' get no tag: they often mean vascan uses a different name for the plant.
+const NOT_NATIVE_STATUS = ['introduced', 'ephemeral'];
 const isNative = st => NATIVE_STATUS.includes(st);
 const plantName = p => p.common || p.sci;
 
@@ -902,8 +903,7 @@ const flowerYears = () => flowers.years[0] === flowers.years[1] ? flowers.years[
 
 function nativeTag(status) {
   if (isNative(status)) return '<span class="tag native" title="Native to British Columbia (VASCAN)">Native</span>';
-  if (NOT_NATIVE_STATUS.includes(status)) return `<span class="tag intro" title="${status === 'absent'
-    ? 'Not established in the wild in British Columbia (VASCAN)' : 'Introduced to British Columbia (VASCAN)'}">Not native</span>`;
+  if (NOT_NATIVE_STATUS.includes(status)) return '<span class="tag intro" title="Introduced to British Columbia (VASCAN)">Not native</span>';
   return '';
 }
 const seenText = (n, people) => `Seen ${plural(n, 'time')} by ${plural(people, 'person', 'people')}`;
@@ -934,7 +934,7 @@ function flowersDrawerHTML() {
   let list = o.native ? f.plants.filter(p => isNative(p.status)) : f.plants;
   if (o.sort === 'kinds') list = [...list].sort((a, b) => b.butterflies.size - a.butterflies.size || b.n - a.n);
   const shown = o.all ? list : list.slice(0, FLOWERS_DRAWER_FIRST);
-  const known = f.plants.filter(p => p.status);
+  const known = f.plants.filter(p => isNative(p.status) || NOT_NATIVE_STATUS.includes(p.status));   // plants with a tag
   const knownN = known.reduce((sum, p) => sum + p.n, 0);
   const nativeN = known.filter(p => isNative(p.status)).reduce((sum, p) => sum + p.n, 0);
   const nameOf = b => f.butterflies[b][1] || f.butterflies[b][0];
@@ -953,9 +953,9 @@ function flowersDrawerHTML() {
       ${f.hasStatus ? `<label class="fl-check"><input type="checkbox" id="flNative" ${o.native ? 'checked' : ''}> Native plants only</label>` : ''}
     </div>
     <ol class="fl-list">${shown.map((p, i) => {
-      const open = o.open === p.sci;
-      const bf = [...p.butterflies].sort((a, b) => b[1] - a[1] || nameOf(a[0]).localeCompare(nameOf(b[0])));
-      return `
+        const open = o.open === p.sci;
+        const bf = [...p.butterflies].sort((a, b) => b[1] - a[1] || nameOf(a[0]).localeCompare(nameOf(b[0])));
+        return `
       <li class="fl-row${open ? ' open' : ''}">
         <button type="button" class="fl-head" data-plant="${esc(p.sci)}" aria-expanded="${open}">
           <span class="rank">${i + 1}</span>
@@ -965,9 +965,9 @@ function flowersDrawerHTML() {
           </span>
         </button>
         ${open ? `<ul class="fl-bf" aria-label="Butterflies seen at ${esc(plantName(p))}">${bf.map(([b, n]) =>
-        `<li><span>${esc(nameOf(b))}</span><span class="n">${fmt(n)}</span></li>`).join('')}</ul>` : ''}
+          `<li><span>${esc(nameOf(b))}</span><span class="n">${fmt(n)}</span></li>`).join('')}</ul>` : ''}
       </li>`;
-    }).join('')}
+      }).join('')}
     </ol>
     ${list.length > FLOWERS_DRAWER_FIRST ? `<button class="link-btn more-btn" type="button" id="flAll">${o.all ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
     <p class="note">These are flowers where people photographed butterflies feeding, across British Columbia, ${flowerYears()}.
