@@ -12,8 +12,8 @@ Each source is written to its own file, data/observations-<source>.json:
       "rows": [[334008305, 0, 49.1234, -123.1234, "2026-01-08", 209, 0], ...]
     }
 
-`sp` indexes into `species`; `region` is the ecoregion id (from data/ecoregions.geojson)
-or null; `flags` bit 1 = location obscured by the observer (blurred to ~20 km).
+'sp' indexes into 'species'; 'region' is the ecoregion id (from data/ecoregions.geojson)
+or null; 'flags' bit 1 = location obscured by the observer (blurred to ~20 km).
 Rows are written one per line, sorted by id.
 """
 import json
@@ -58,7 +58,7 @@ def tag_ecoregions(points):
 
 
 def known_common_names(extra=None):
-    """Common names from species-info.json, then `extra` (wins)."""
+    """Common names from species-info.json, then 'extra' (wins)."""
     names = {}
     if os.path.exists(SPECIES_INFO):
         for sci, e in json.load(open(SPECIES_INFO, encoding="utf-8")).get("species", {}).items():

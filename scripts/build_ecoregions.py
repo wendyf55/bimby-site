@@ -4,16 +4,10 @@ Build the ecoregion data used by index.html.
 Inputs (downloaded manually from AAFC's National Ecological Framework for Canada,
 https://sis.agr.gc.ca/cansis/nsdb/ecostrat/gis_data.html):
     data/raw/ecoregion_shp.zip   194 ecoregions (218 polygons), NAD83 lat/long
-    data/raw/ecozone_shp.zip     15 ecozones (used for zone names only)
+    data/raw/ecozone_shp.zip  15 ecozones (used for zone names only)
 
 Outputs:
-    data/ecoregions.geojson             simplified ecoregion outlines for the map; the
-                                        source builders tag each record's ecoregion
-                                        with these (scripts/source_files.py)
-    data/ecozones.geojson               ecozone outlines (merged from the simplified
-                                        ecoregions); not used by any page right now
-
-Requires: pip install pyshp shapely   (shapely >= 2.1 for coverage_simplify)
+    data/ecoregions.geojson, data/ecozones.geojson
 
 Run from the repo root:
     python3 scripts/build_ecoregions.py

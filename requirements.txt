@@ -10,3 +10,6 @@ pyproj>=3.4           # reprojects the Statistics Canada boundaries (build_posta
 # Only for re-exporting the Guppy & Shepard CSV from the Numbers file
 # (build_observations.py --from-numbers):
 numbers-parser
+
+# Reads the Deedes & Hocking host plant spreadsheet (clean_hosts_deedes.py):
+openpyxl

@@ -3,7 +3,7 @@ Build the postal code lookup used by the place search in index.html.
 
 Only the first three characters of a postal code (the forward sortation area, FSA,
 e.g. "V6T") are used: full six-character postal code locations are licensed by
-Canada Post, but Statistics Canada publishes FSA boundaries under its Open Licence.
+Canada Post, but Statistics Canada publishes FSA boundaries under its Open Licence
 
 Input (downloaded manually from Statistics Canada, Census Forward Sortation Area
 Boundary File, 2021, cartographic, shapefile, catalogue 92-179-X):
@@ -16,8 +16,7 @@ Output:
         "V0H": {"pt": [...], "km2": 9876, "wide": 1, "outline": <GeoJSON geometry>}
     "pt" is a point well inside the FSA's largest piece (where the page drops its pin).
     "wide" FSAs (rural codes, second character 0, or larger than WIDE_KM2) are too big
-    for a pin to mean much, so the page shows their simplified "outline" instead and
-    asks the visitor to click their spot.
+    for a pin to mean much
 
 Requires: pip install pyshp shapely pyproj
 

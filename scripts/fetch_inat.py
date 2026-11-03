@@ -40,6 +40,8 @@ records than the cache already has (< 80%) is treated as an error and not saved.
 
 Standard library only. Run from the repo root:
     python3 scripts/fetch_inat.py
+
+documentation written by Claude
 """
 import json
 import os

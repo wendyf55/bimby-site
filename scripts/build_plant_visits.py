@@ -2,7 +2,7 @@
 Build data/plant-visits.json (the flowers butterflies were seen on) from
 data/plant-visits-clean.csv, which scripts/clean_plant_visits.py makes.
 
-The page adds these up itself, so the file keeps one short row per record:
+The page adds these up itself, so the file keeps one  row per record:
 
     {
       "built": "2026-10-30", "years": [2024, 2026],
@@ -12,7 +12,7 @@ The page adds these up itself, so the file keeps one short row per record:
       "rows": [[0, 12, 7, 3], ...]
     }
 
-`butterfly` and `plant` index into their lists; `month` is 1-12; `person` is a
+'butterfly' and 'plant' index into their lists; 'month' is 1-12; 'person' is a
 number that only tells observers apart (used for "seen by N people"). No names
 or iNaturalist user ids are published. Plant status is from VASCAN ('' = unknown).
 
@@ -28,7 +28,7 @@ OUT = "data/plant-visits.json"
 
 
 def index_of(lookup, key, values):
-    """Adds `key` to `lookup` the first time it is seen; returns its position."""
+    """Adds 'key' to 'lookup' the first time it is seen; returns its position."""
     if key not in lookup:
         lookup[key] = len(lookup)
         values.append(None)

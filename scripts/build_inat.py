@@ -7,14 +7,13 @@ Cleaning
       (e.g. Vanessa atalanta rubria -> Vanessa atalanta), then
       scripts/inat_name_map.json merges iNaturalist's split taxa into the lumped
       names Guppy & Shepard use (e.g. Celastrina echo -> Celastrina echo-asheri).
-    - Records identified only above species (genus, complex...) and hybrids are left out,
-      unless the name is in the name map.
+    - Records identified only above species  and hybrids are left out,
+      unless the name is in the name map
     - Records with poor location accuracy (> 5 km) are left out, except obscured
       ones: those are kept and flagged, and the page leaves them out of the
       small "Near you" distances.
     - Only observations licensed CC0, CC BY or CC BY-NC are used (fetch_inat.py
-      already asks for just those; this is a second check). The licence mix is
-      printed at the end.
+      already asks for just those; this is a second check)
 Common names come from data/species-info.json where it has one, otherwise from
 iNaturalist (the species-level name, not a subspecies name).
 

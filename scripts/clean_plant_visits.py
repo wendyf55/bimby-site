@@ -15,7 +15,7 @@ Steps:
   7. Add each plant's status in BC (native, introduced, ...) from vascan
 activity column is dropped
 
-Usage (from the repo root; fetching plant common names needs internet):
+using it:
     python3 scripts/clean_plant_visits.py
 """
 import csv

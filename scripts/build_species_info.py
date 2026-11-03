@@ -16,23 +16,17 @@ Sources
 Matching
     Names are looked up on iNaturalist first (it tracks current butterfly taxonomy
     and links each taxon to its Wikipedia article). When a subspecies or hybrid
-    has no licensed photo or no article, it falls back to the first hybrid parent
+    has no licensed photo or no article, it goes back to the first hybrid parent
     and then to the species. If Wikipedia has no article under the scientific name
     (it sometimes uses an older genus), the common name is tried.
 
 Manual fixes
     Optional data/species-info-overrides.json (tracked in git), keyed by scientific
     name; keys starting with "_" are comments. A species is fetched again whenever its
-    override is added, changed or removed. E.g.
-        { "Colias": { "wikipediaTitle": "Colias" },
-          "Some species": { "description": "Our own text…", "photoUrl": "…",
-                            "photoAttribution": "(c) …", "photoLicense": "cc-by" } }
+    override is added, changed or removed. E.g. { "Colias": { "wikipediaTitle": "Colias" },
 
-Uses only the Python standard library. Needs internet access. Run from the repo root:
     python3 scripts/build_species_info.py            # only fetches species not yet in the file
     python3 scripts/build_species_info.py --refresh  # re-fetch everything
-It pauses ~1 s between iNaturalist requests (their API limit), so a full run of
-~250 species takes about 5–8 minutes.
 """
 import glob
 import json

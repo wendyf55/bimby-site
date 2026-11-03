@@ -1,6 +1,5 @@
 """
-Build data/observations-sg.json (the Guppy & Shepard source) from the occurrence dataset.
-The file format is described in scripts/source_files.py; ecoregions are tagged here.
+Build data/observations-sg.json (the Guppy & Shepard source) from the occurrence dataset
 
 Current source (switched in 2026-10-05):
     Occurrence records compiled for
@@ -10,15 +9,10 @@ Current source (switched in 2026-10-05):
     File: data/occurrence_data_subset.csv (exported from Occurrence_data-subset.numbers)
     Columns: (row number), Species_binomial, Latitude, Longitude, Date (YYYY-MM-DD)
 
-iNaturalist records are a separate source: scripts/fetch_inat.py + scripts/build_inat.py.
-
 Usage (from the repo root):
     python3 scripts/build_observations.py
 
-To re-export the CSV from the Numbers file (needs `pip install numbers-parser`):
-    python3 scripts/build_observations.py --from-numbers Occurrence_data-subset.numbers
-
-Needs shapely >= 2 (pip install shapely). Afterwards run scripts/build_species_info.py
+Needs shapely(pip install shapely). Afterwards run scripts/build_species_info.py
 to fetch descriptions/photos for any new species.
 """
 import csv, os, sys
