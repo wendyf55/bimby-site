@@ -1,21 +1,21 @@
 """
-Clean the butterfly-on-plant records (data/BIMBY-butterflies-plants.csv) into
-data/plant-visits-clean.csv, one row per butterfly seen on a plant.
+cleans the bimby nectaring data (data/BIMBY-butterflies-plants.csv) into
+data/plant-visits-clean.csv: one row per butterfly seen on a plant.
 
 Steps:
-  1. Keep British Columbia only.
+  1. Keep bc only.
   2. Keep research-grade records only, for both the butterfly and the plant.
   3. Keep licences the site already uses: CC0, CC BY, CC BY-NC.
-  4. Keep plants identified to species (drop genus, family, etc.).
+  4. Keep plants identified to species (drop genus, family, etc.), and drop
+     records whose "plant" is rnot a plant
   5. Match butterfly names to the names used on the site: subspecies are rolled
      up to their species, then scripts/inat_name_map.json is applied.
   6. Add common names: butterflies from the site's own data, plants from
      iNaturalist (saved in data/plant-common-names.json, so they are fetched once).
-  7. Add each plant's status in BC (native, introduced, ...) from VASCAN, the
-     Database of Vascular Plants of Canada (saved in data/plant-bc-status.json).
-The "activity" column dropped
+  7. Add each plant's status in BC (native, introduced, ...) from vascan
+activity column is dropped
 
-Usage (from the repo root; fetching plant names and statuses needs internet):
+Usage (from the repo root; fetching plant common names needs internet):
     python3 scripts/clean_plant_visits.py
 """
 import csv
@@ -25,18 +25,17 @@ import time
 import urllib.parse
 import urllib.request
 
+from vascan import Vascan
+
 SRC = "data/BIMBY-butterflies-plants.csv"
 OUT = "data/plant-visits-clean.csv"
 PLANT_NAMES = "data/plant-common-names.json"
-PLANT_STATUS = "data/plant-bc-status.json"
 BUTTERFLY_NAME_MAP = "scripts/inat_name_map.json"
 SITE_SPECIES_FILES = ["data/observations-sg.json", "data/observations-inat.json"]
 
 LICENCES = {"CC0", "CC-BY", "CC-BY-NC"}
 INAT_API = "https://api.inaturalist.org/v1/taxa"
 BC_PLACE_ID = 7085   # asks iNaturalist for the names used in BC
-VASCAN_API = "https://data.canadensys.net/vascan/api/0.1/search.json"
-VASCAN_BATCH = 200   # VASCAN accepts up to 200 names per request
 
 COLUMNS = [
     "id", "date", "latitude", "longitude", "obscured",
@@ -98,65 +97,11 @@ def add_plant_common_names(plants):
     return names
 
 
-def ask_vascan(terms):
-    """Looks up names (or VASCAN taxon ids) in VASCAN. Returns its list of results,
-    one per term, in the same order."""
-    body = urllib.parse.urlencode({"q": "\n".join(str(t) for t in terms)}).encode()
-    with urllib.request.urlopen(VASCAN_API, data=body, timeout=60) as response:
-        return json.load(response)["results"]
-
-
-def bc_status_of(match):
-    """'native', 'introduced', 'ephemeral', ... for BC, or 'absent' if not listed in BC."""
-    for place in match.get("distribution", []):
-        if place["locality"] == "BC":
-            return place["occurrenceStatus"]
-    return "absent"
-
-
-def is_accepted(match):
-    return match["taxonomicAssertions"][0]["taxonomicStatus"] == "accepted"
-
-
 def add_plant_bc_status(plants):
-    """Returns {scientific name: status in BC}, fetching any not already saved.
+    """Returns {scientific name: status in BC} from the VASCAN archive (see scripts/vascan.py).
     Status is '' when VASCAN doesn't know the name."""
-    statuses = json.load(open(PLANT_STATUS)) if os.path.exists(PLANT_STATUS) else {}
-    missing = sorted(p for p in plants if p not in statuses)
-    if missing:
-        print(f"Fetching BC status for {len(missing)} plants from VASCAN...")
-    try:
-        for start in range(0, len(missing), VASCAN_BATCH):
-            batch = missing[start:start + VASCAN_BATCH]
-            synonyms = {}   # our name -> VASCAN id of the accepted name
-            for name, result in zip(batch, ask_vascan(batch)):
-                # VASCAN leaves out "matches" when it finds nothing
-                matches = [m for m in result.get("matches", []) if m.get("canonicalName") == name]
-                accepted = [m for m in matches if is_accepted(m)]
-                if accepted:
-                    statuses[name] = bc_status_of(accepted[0])
-                elif matches:
-                    # An older name: look up the name VASCAN uses now.
-                    synonyms[name] = matches[0]["taxonomicAssertions"][0]["acceptedNameUsageID"]
-                else:
-                    statuses[name] = ""
-            if synonyms:
-                for name, result in zip(synonyms, ask_vascan(synonyms.values())):
-                    matches = result.get("matches", [])
-                    statuses[name] = bc_status_of(matches[0]) if matches else ""
-            time.sleep(1)
-    except OSError as error:
-        print(f"  Could not reach VASCAN ({error}); run again to finish.")
-    not_found = [p for p in plants if statuses.get(p) == ""]
-    if len(not_found) > len(plants) / 2:
-        print(f"  Warning: VASCAN found only {len(plants) - len(not_found)} of {len(plants)} plants.")
-        print("  What VASCAN sent back for the first one:")
-        print("  ", json.dumps(ask_vascan(not_found[:1])[0])[:600])
-        print(f"  Not saving these results, so the next run asks again.")
-        return statuses
-    with open(PLANT_STATUS, "w", encoding="utf-8") as f:
-        json.dump(dict(sorted(statuses.items())), f, indent=2, ensure_ascii=False)
-    return statuses
+    vascan = Vascan()
+    return {plant: vascan.bc_status(plant) for plant in plants}
 
 
 def capitalize(name):
@@ -176,6 +121,8 @@ def is_kept(row):
         return "licence"
     if row["species"] in ("", "NA"):
         return "plant not identified to species"
+    if not row["family"].endswith("aceae"):
+        return "'plant' is an animal (e.g. the butterfly itself)"   # plant families end in -aceae
     if len(row["scientific_name"].split()) < 2:
         return "butterfly not identified to species"
     return None
