@@ -20,8 +20,8 @@ const ICON = {
   locate: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>',
   search: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg>',
   shape: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18 8 5l11 4-3 10z"/><circle cx="5" cy="18" r="1.5"/><circle cx="8" cy="5" r="1.5"/><circle cx="19" cy="9" r="1.5"/><circle cx="16" cy="19" r="1.5"/></svg>',
+  home: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/></svg>',
   bars: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/></svg>',
-  flower: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="2.2"/><path d="M12 7.8a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 1 1 0 5.2zM12 12.2a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 1 0 0-5.2zM9.8 10a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 1 1 5.2 0zM14.2 10a2.6 2.6 0 1 0 5.2 0 2.6 2.6 0 1 0-5.2 0zM12 17.4V22"/></svg>',
 };
 
 // Data sources (one file each, built by scripts/build_*.py)
@@ -40,13 +40,15 @@ const state = {
   shape: null,                                            // drawn area [[lat, lng], …]; replaces the circle when set
   scope: 'near',                                          // 'near' | 'region'
   q: '', month: '', sort: 'count', year: '',
-  open: null, plantCat: 'nectar', listId: null,           // expanded card
+  open: null, plantCat: 'host', listId: null,           // expanded card
   flowersAll: false,                                      // butterfly detail: show every flower, not just the top few
+  hostsAll: false,                                        // butterfly detail: show every host plant, not just the top few
   mapped: null,                                           // species shown as dots
   matches: null, message: '', showEcoInfo: false, placeQ: '',   // placeQ = text in the place search box
   trends: null,                                           // 'near' | 'region' when the trends drawer is open
   flowers: false,                                         // the BC-wide flowers drawer is open
-  fl: { sort: 'count', native: false, open: null, all: false },   // flowers drawer: sort, native only, expanded plant, show all
+  fl: { cat: 'host', sort: 'count', native: false, open: null, all: false },   // plants drawer: tab (host | nectar),
+  // flower sort, native only, expanded plant, show all
   secOpen: { months: true, years: true },                 // collapsible sections in a butterfly's detail
   sources: null,                                          // keys of sources shown (null = all loaded)
 };
@@ -67,6 +69,16 @@ function lockZoomToBC() {
 }
 lockZoomToBC();
 map.on('resize', lockZoomToBC);
+// Home button under the zoom buttons: starts the page over (see startOver)
+const homeBtn = L.control({ position: 'topleft' });
+homeBtn.onAdd = () => {
+  const bar = L.DomUtil.create('div', 'leaflet-bar home-ctl');
+  bar.innerHTML = `<a href="./" role="button" title="Start over" aria-label="Start over">${ICON.home}</a>`;
+  L.DomEvent.disableClickPropagation(bar);
+  bar.querySelector('a').addEventListener('click', e => startOver(e));
+  return bar;
+};
+homeBtn.addTo(map);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19, bounds: NA_BOUNDS, noWrap: true,
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -139,7 +151,9 @@ Promise.all([
   SpeciesInfo.load(),
   fetch('data/plant-visits.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .catch(err => { console.warn('Flower data not loaded', err); return null; }),
-]).then(([sources, lists, geo, , visits]) => {
+  fetch('data/host-plants.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .catch(err => { console.warn('Host plant data not loaded', err); return null; }),
+]).then(([sources, lists, geo, , visits, hostData]) => {
   for (const s of sources.filter(Boolean)) {
     const { src, d } = s, f = Object.fromEntries(d.fields.map((k, i) => [k, i]));
     srcMeta[src.key] = { asOf: d.asOf || d.built, count: d.rows.length, years: yearRange(d.rows.map(r => r[f.date])) };
@@ -156,6 +170,7 @@ Promise.all([
   if (!allObs.length) throw new Error('no observation data');
   for (const l of lists) (plantIndex[l.butterfly.scientificName] ??= []).push(l);
   if (visits) flowers = buildFlowers(visits);
+  if (hostData) hosts = buildHosts(hostData);
   regions = geo.features.map(f => ({ f, bbox: bboxOf(f.geometry) }));
   applySources();
   if (!restoreFromHash()) render();
@@ -563,6 +578,13 @@ function useMyLocation() {
   );
 }
 
+// Start over: load the page again with nothing chosen (no spot, butterfly, drawer or source filter)
+function startOver(e) {
+  e?.preventDefault();
+  location.assign(location.pathname + location.search);
+}
+document.getElementById('homeLink')?.addEventListener('click', startOver);
+
 function resetPlace() {
   stopDrawing();
   state.point = null; state.shape = null; state.region = null; state.open = null; state.place = '';
@@ -696,8 +718,8 @@ function startHTML() {
       ${flowersButton()}</div>` : ''}`;
 }
 
-const flowersButton = () => flowers ? `<div class="fl-open"><button class="trend-btn" type="button" data-flowers
-  aria-expanded="${state.flowers}" aria-controls="flowers">${ICON.flower}Flowers butterflies visit in BC</button></div>` : '';
+const flowersButton = () => flowers || hosts ? `<div class="fl-open"><button class="trend-btn" type="button" data-flowers
+  aria-expanded="${state.flowers}" aria-controls="flowers">Plants butterflies use in BC</button></div>` : '';
 
 function resultsHTML() {
   const near = statsFor('near'), reg = state.region ? statsFor('region') : null;
@@ -751,28 +773,41 @@ function resultsHTML() {
     <details class="about">
       <summary>About this data</summary>
       <p>Butterfly records (${srcMeta.sg?.years ? srcMeta.sg.years.join('&ndash;') + ', ' : ''}British Columbia) come from the occurrence data compiled for
-        Guppy, C., &amp; Shepard, J. (2001). <i>Butterflies of British Columbia: Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern Oregon, Northern Idaho, and Northwestern Montana</i>. UBC Press.
-        A butterfly missing from the list may simply not have been recorded here yet.</p>
+        Guppy, C., &amp; Shepard, J. (2001). <i>Butterflies of British Columbia: Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern Oregon, Northern Idaho, and Northwestern Montana</i>. UBC Press.</p>
       ${loaded.includes('inat') ? `<p>iNaturalist records are research-grade butterfly observations in British Columbia
-        (identifications agreed by the community), refreshed weekly${srcMeta.inat.asOf ? `; last updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}` : ''}.
+        (identifications agreed by the community), refreshed twice a week${srcMeta.inat.asOf ? `; last updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}` : ''}.
         Observations are &copy; their observers, used under the licence each observer chose
         (<a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener" style="color:var(--link)">CC0</a>,
         <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:var(--link)">CC BY</a> or
         <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener" style="color:var(--link)">CC BY-NC</a>;
         records under other licences are not shown); each map dot links to its observation, with the observer's name and licence.
-        Thanks to the iNaturalist observers who shared them. Subspecies are counted under their species, and a few split species are
+        Subspecies are counted under their species, and a few split species are
         grouped to match Guppy &amp; Shepard (e.g. iNaturalist's two Arctic Skippers count as one). Where an observer hid their exact location
         (blurred by about 20 km), the sighting counts towards your ecoregion and the ${NEAR_MIN_KM_OBSCURED} km and ${RADII[RADII.length - 1]} km circles
         (or drawn areas of at least ${fmt(Math.round(Math.PI * NEAR_MIN_KM_OBSCURED ** 2 / 10) * 10)} km²) only.</p>` : ''}
-      <p>Descriptions come from Wikipedia and photos from iNaturalist photographers (credited on each butterfly).
-        Plant lists come from the Xerces Society. Ecoregions: Agriculture and Agri-Food Canada.</p>
+      <p>Descriptions come from Wikipedia (CC BY-SA 4.0), and photos from iNaturalist and Wikimedia Commons photographers
+        (credited on each butterfly). The Monarch nectar plant list comes from the Xerces Society (Adamson, Fallon &amp; Vaughan, 2018).</p>
       ${flowers ? `<p>Flower records (${flowerYears()}) are research-grade iNaturalist observations of butterflies feeding at flowers in
         British Columbia, where the flower was also identified to species and research grade, used under the observer's
-        licence (CC0, CC BY or CC BY-NC). They are counted for all of BC together.${flowers.hasStatus ? ` Native status comes from
-        Brouillet, L., Desmet, P., Coursol, F., Meades, S.J., Favreau, M., Anions, M., Bélisle, P., Gendreau, C., Shorthouse, D.
-        and contributors (2010+). <i>Database of Vascular Plants of Canada (VASCAN)</i>.
-        <a href="https://data.canadensys.net/vascan" target="_blank" rel="noopener" style="color:var(--link)">data.canadensys.net/vascan</a>
-        (version 37.17, 4 August 2026).` : ''}</p>` : ''}
+        licence (CC0, CC BY or CC BY-NC). They are counted for all of BC together. Flower common names come from iNaturalist.</p>` : ''}
+      ${hosts ? `<p>Host plants come from <a href="${HOST_LIST_URL}" target="_blank" rel="noopener" style="color:var(--link)">B.C. Host Plants</a>
+        by Stephen Deedes and Sally Hocking (The Butterflyway Lane; accessed ${fmtDate(hosts.accessed)}). Their list draws on
+        Acorn, J. &amp; Sheldon, I. (2006) <i>Butterflies of British Columbia</i>; Guppy, C. &amp; Shepard, J. (2001)
+        <i>Butterflies of British Columbia</i>; Pojar, J. &amp; MacKinnon, A. (1994) <i>Plants of Coastal British Columbia</i>;
+        the Xerces Society (2016) <i>Gardening for Butterflies</i>; Beard, R. <i>Garden Butterflies of the Georgia Basin</i>;
+        Campbell, <i>Common Butterflies, Georgia Basin</i>; and E-Fauna BC. Older butterfly names in the list were matched to the
+        names used here with iNaturalist and BugGuide; a few that could not be matched yet are left out.</p>` : ''}
+      ${flowers?.hasStatus || hosts ? `<p>Native plant status: Brouillet, L., Desmet, P., Coursol, F., Meades, S.J., Favreau, M., Anions, M.,
+        Bélisle, P., Gendreau, C., Shorthouse, D. and contributors (2010+). <i>Database of Vascular Plants of Canada (VASCAN)</i>.
+        Version ${VASCAN_VERSION}. <a href="https://doi.org/10.5886/zw3aqw" target="_blank" rel="noopener" style="color:var(--link)">doi:10.5886/zw3aqw</a>.
+        Accessed ${fmtDate(VASCAN_ACCESSED)}.</p>` : ''}
+      <p>Ecoregions: Ecological Stratification Working Group (1995). <i>A National Ecological Framework for Canada</i>.
+        Agriculture and Agri-Food Canada and Environment Canada.
+        <a href="https://sis.agr.gc.ca/cansis/nsdb/ecostrat/" target="_blank" rel="noopener" style="color:var(--link)">sis.agr.gc.ca/cansis/nsdb/ecostrat</a>.
+        Contains information licensed under the
+        <a href="https://open.canada.ca/en/open-government-licence-canada" target="_blank" rel="noopener" style="color:var(--link)">Open Government Licence – Canada</a>.</p>
+      <p>Postal code areas: Adapted from Statistics Canada, Census Forward Sortation Area Boundary File, 2021 Census (92-179-X).
+        This does not constitute an endorsement by Statistics Canada of this product.</p>
     </details>`;
   return html;
 }
@@ -841,11 +876,11 @@ function detailHTML(s) {
 
       <h4 style="margin-top:22px">Plants it uses</h4>
       <div class="seg" role="group" aria-label="Plant type">
-        <button type="button" data-cat="host" aria-pressed="${state.plantCat === 'host'}">Caterpillar food (host)</button>
-        <button type="button" data-cat="nectar" aria-pressed="${state.plantCat === 'nectar'}">Adult food (nectar)</button>
+        <button type="button" data-cat="host" aria-pressed="${state.plantCat === 'host'}">Host Plants</button>
+        <button type="button" data-cat="nectar" aria-pressed="${state.plantCat === 'nectar'}">Nectar Plants</button>
       </div>
       ${state.plantCat === 'host'
-      ? (list ? xercesHTML(lists, list, plants) : `<p class="note">We don’t have a host plant list for this butterfly yet.</p>`)
+      ? hostTabHTML(s, lists, list, plants)
       : `${flowersForHTML(s)}${list && plants.length ? `<h5 class="plants-sub">Xerces Society nectar plant list</h5>${xercesHTML(lists, list, plants)}` : ''}`}
 
       <div class="map-row">
@@ -872,6 +907,8 @@ function xercesHTML(lists, list, plants) {
 let flowers = null;
 const FLOWERS_FIRST = 8;          // flowers shown in a butterfly's detail before "Show all"
 const FLOWERS_DRAWER_FIRST = 25;  // flowers shown in the drawer before "Show all"
+// VASCAN archive used by scripts/vascan.py: update both when you download a newer version
+const VASCAN_VERSION = '37.17', VASCAN_ACCESSED = '2026-11-03';
 const NATIVE_STATUS = ['native', 'extirpated'];                          // VASCAN statuses for BC
 // Only what VASCAN says is introduced gets "Not native". 'absent', 'excluded', 'doubtful'
 // and 'mixed' get no tag: they often mean vascan uses a different name for the plant.
@@ -908,7 +945,7 @@ function nativeTag(status) {
 }
 const seenText = (n, people) => `Seen ${plural(n, 'time')} by ${plural(people, 'person', 'people')}`;
 
-// Option 1: in a butterfly's detail, under "Adult food (nectar)"
+// Option 1: in a butterfly's detail, under "Nectar Plants"
 function flowersForHTML(s) {
   if (!flowers) return '';
   const list = flowers.byButterfly[s.sci] || [];
@@ -925,7 +962,7 @@ function flowersForHTML(s) {
     ${list.length > FLOWERS_FIRST ? `<button class="link-btn more-btn" type="button" id="flowersAll">${state.flowersAll ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
     <p class="cite">From research-grade iNaturalist photos of butterflies feeding at flowers. Counts show where people
       looked and took photos, not which flowers butterflies like best.
-      <button class="link-btn" type="button" data-flowers>See all flowers in BC</button></p>`;
+      <button class="link-btn" type="button" data-flowers data-flcat="nectar">See all nectar flowers in BC</button></p>`;
 }
 
 // Option 2: drawer with every flower in BC, ranked
@@ -977,24 +1014,132 @@ function flowersDrawerHTML() {
       ${f.hasStatus ? `Native status: <a href="https://data.canadensys.net/vascan" target="_blank" rel="noopener">VASCAN</a>, the Database of Vascular Plants of Canada.` : ''}</p>`;
 }
 
+// ---------- Host plants: what caterpillars eat (B.C. Host Plants list, all of BC) ----------
+// data/host-plants.json, built by scripts/build_host_plants.py. A list from field guides, not sightings,
+// so there are no counts. A plant's Latin name is a genus ("Salix") when any species of it is listed.
+let hosts = null;
+const HOSTS_FIRST = 8;   // host plants shown in a butterfly's detail before "Show all"
+const HOST_LIST_URL = 'https://butterflies.deedesie.com/b-c-host-plants/';
+
+function buildHosts(d) {
+  const plants = d.plants.map(([sci, common, type, status]) => ({ sci, common, type, status, butterflies: [] }));
+  const byButterfly = {};   // butterfly sci -> its plants
+  for (const [b, p] of d.rows) {
+    plants[p].butterflies.push(b);
+    (byButterfly[d.butterflies[b][0]] ??= []).push(plants[p]);
+  }
+  const byName = (a, b) => plantName(a).localeCompare(plantName(b));
+  for (const list of Object.values(byButterfly)) list.sort(byName);
+  return {
+    plants: plants.filter(p => p.butterflies.length).sort((a, b) => b.butterflies.length - a.butterflies.length || byName(a, b)),
+    butterflies: d.butterflies, byButterfly, accessed: d.accessed || d.built,
+    noneKnown: new Set((d.noneKnown || []).map(b => d.butterflies[b][0])),
+  };
+}
+// Latin name in italics; a genus gets "any species"
+const hostSci = p => !p.sci ? '' : p.sci.includes(' ') ? `<i>${esc(p.sci)}</i>` : `<i>${esc(p.sci)}</i> <span class="any">any species</span>`;
+const hostSource = () => `Source: <a href="${HOST_LIST_URL}" target="_blank" rel="noopener">B.C. Host Plants</a>,
+  Stephen Deedes and Sally Hocking (The Butterflyway Lane), gathered from field guides.`;
+
+// In a butterfly's detail, under "Host Plants"
+function hostsForHTML(s) {
+  if (!hosts) return '';
+  if (hosts.noneKnown.has(s.sci)) return `<p class="note">No host plants are known for this butterfly yet.</p>`;
+  const list = hosts.byButterfly[s.sci];
+  if (!list) return '';
+  const shown = state.hostsAll ? list : list.slice(0, HOSTS_FIRST);
+  return `
+    <h5 class="plants-sub">Plants its caterpillars eat</h5>
+    <p class="chart-sub">${plural(list.length, 'plant')} listed for British Columbia</p>
+    <ul class="plants flowers">${shown.map(p => `
+      <li><span class="fl-name">${esc(plantName(p))} ${nativeTag(p.status)}${hostSci(p)}</span>
+        ${p.type ? `<span class="bloom">${esc(p.type)}</span>` : ''}</li>`).join('')}
+    </ul>
+    ${list.length > HOSTS_FIRST ? `<button class="link-btn more-btn" type="button" id="hostsAll">${state.hostsAll ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
+    <p class="cite">${hostSource()}
+      <button class="link-btn" type="button" data-flowers data-flcat="host">See all host plants in BC</button></p>`;
+}
+// The whole host tab: the B.C. Host Plants list, then a Xerces Society list if there is one
+function hostTabHTML(s, lists, list, plants) {
+  const deedes = hostsForHTML(s);
+  if (!list) return deedes || `<p class="note">We don’t have a host plant list for this butterfly yet.</p>`;
+  if (!deedes) return xercesHTML(lists, list, plants);
+  return deedes + (plants.length ? `<h5 class="plants-sub">Xerces Society host plant list</h5>${xercesHTML(lists, list, plants)}` : '');
+}
+
+// Drawer tab: every host plant in the list, ranked by how many kinds of butterflies use it
+function hostsDrawerHTML() {
+  const h = hosts, o = state.fl;
+  let list = o.native ? h.plants.filter(p => isNative(p.status)) : h.plants;
+  const shown = o.all ? list : list.slice(0, FLOWERS_DRAWER_FIRST);
+  const nameOf = b => h.butterflies[b][1] || h.butterflies[b][0];
+  // Share of host plants that are native, out of those with a Native / Not native tag
+  const tagged = h.plants.filter(p => isNative(p.status) || NOT_NATIVE_STATUS.includes(p.status));
+  const nativeShare = tagged.length ? Math.round(100 * tagged.filter(p => isNative(p.status)).length / tagged.length) : null;
+  return `
+    <div class="tr-stats">
+      <div><b>${fmt(h.plants.length)}</b><span>host plants</span></div>
+      <div><b>${fmt(Object.keys(h.byButterfly).length)}</b><span>butterflies with known host plants</span></div>
+      ${nativeShare !== null ? `<div><b>${nativeShare}%</b><span>of host plants are native</span></div>` : ''}
+    </div>
+    <div class="fl-controls">
+      <label class="fl-check"><input type="checkbox" id="flNative" ${o.native ? 'checked' : ''}> Native plants only</label>
+    </div>
+    <ol class="fl-list">${shown.map((p, i) => {
+    const key = p.sci || p.common, open = o.open === key;
+    const bf = p.butterflies.map(nameOf).sort((a, b) => a.localeCompare(b));
+    return `
+      <li class="fl-row${open ? ' open' : ''}">
+        <button type="button" class="fl-head" data-plant="${esc(key)}" aria-expanded="${open}">
+          <span class="rank">${i + 1}</span>
+          <span class="fl-main">
+            <span class="fl-name">${esc(plantName(p))} ${nativeTag(p.status)}${hostSci(p)}</span>
+            <span class="fl-nums">Food for ${plural(p.butterflies.length, 'kind')} of butterfly${p.type ? ` · ${esc(p.type)}` : ''}</span>
+          </span>
+        </button>
+        ${open ? `<ul class="fl-bf" aria-label="Butterflies whose caterpillars eat ${esc(plantName(p))}">${bf.map(n =>
+      `<li><span>${esc(n)}</span></li>`).join('')}</ul>` : ''}
+      </li>`;
+  }).join('')}
+    </ol>
+    ${list.length > FLOWERS_DRAWER_FIRST ? `<button class="link-btn more-btn" type="button" id="flAll">${o.all ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
+    <p class="note">These are plants the caterpillars of BC butterflies are known to eat, gathered from field guides.
+      Many are still unknown, so a butterfly may use plants not listed here.</p>
+    <p class="cite">${hostSource()}
+      Native status: <a href="https://data.canadensys.net/vascan" target="_blank" rel="noopener">VASCAN</a>, the Database of Vascular Plants of Canada.</p>`;
+}
+
 function renderFlowers() {
   const el = document.getElementById('flowers');
-  if (!flowers) state.flowers = false;
+  if (!flowers && !hosts) state.flowers = false;
+  if (!hosts) state.fl.cat = 'nectar';
+  if (!flowers) state.fl.cat = 'host';
   el.classList.toggle('open', state.flowers);
   el.setAttribute('aria-hidden', String(!state.flowers));
   document.querySelectorAll('[data-flowers]').forEach(b => b.setAttribute('aria-expanded', String(state.flowers)));
   if (!state.flowers) return;
   const scroll = el.querySelector('.tr-body')?.scrollTop || 0;
+  const host = state.fl.cat === 'host';
   el.innerHTML = `
     <header class="tr-head">
-      <div class="ttl"><h2>Flowers butterflies visit</h2><div class="where">All of British Columbia · ${flowerYears()}</div></div>
+      <div class="ttl"><h2>Plants butterflies use</h2><div class="where">All of British Columbia${host ? '' : ` · ${flowerYears()}`}</div></div>
       <button class="close-btn" type="button" id="closeFlowers">Close</button>
     </header>
-    <div class="tr-body">${flowersDrawerHTML()}</div>`;
+    <div class="tr-body">
+      ${flowers && hosts ? `<div class="seg fl-tabs" role="group" aria-label="Plant type">
+        <button type="button" data-flcat="host" aria-pressed="${host}">Host Plants</button>
+        <button type="button" data-flcat="nectar" aria-pressed="${!host}">Flowers they visit</button>
+      </div>` : ''}
+      ${host ? hostsDrawerHTML() : flowersDrawerHTML()}</div>`;
   el.querySelector('.tr-body').scrollTop = scroll;
   const redraw = () => { updateHash(); renderFlowers(); };
   el.querySelector('#closeFlowers').addEventListener('click', closeFlowers);
   el.querySelectorAll('[data-flsort]').forEach(b => b.addEventListener('click', () => { state.fl.sort = b.dataset.flsort; redraw(); }));
+  el.querySelectorAll('.fl-tabs [data-flcat]').forEach(b => b.addEventListener('click', () => {
+    setPlantsTab(b.dataset.flcat); redraw();
+    el.querySelector('.tr-body').scrollTop = 0;
+    el.querySelector(`.fl-tabs [data-flcat="${b.dataset.flcat}"]`)?.focus({ preventScroll: true });
+  }));
   el.querySelector('#flNative')?.addEventListener('change', e => { state.fl.native = e.target.checked; redraw(); });
   el.querySelector('#flAll')?.addEventListener('click', () => { state.fl.all = !state.fl.all; redraw(); });
   el.querySelectorAll('[data-plant]').forEach(b => b.addEventListener('click', () => {
@@ -1002,8 +1147,18 @@ function renderFlowers() {
     el.querySelector(`[data-plant="${CSS.escape(b.dataset.plant)}"]`)?.focus({ preventScroll: true });
   }));
 }
+function setPlantsTab(cat) {
+  if (state.fl.cat !== cat) { state.fl.cat = cat; state.fl.open = null; state.fl.all = false; }
+}
 function openFlowers(opener) {
   flowersOpener = opener;
+  const cat = opener?.dataset.flcat;
+  if (cat && state.flowers && state.fl.cat !== cat) {   // already open on the other tab: switch tabs
+    setPlantsTab(cat); updateHash(); renderFlowers();
+    document.getElementById('closeFlowers')?.focus({ preventScroll: true });
+    return;
+  }
+  if (cat) setPlantsTab(cat);
   state.flowers = !state.flowers;
   if (state.flowers && state.trends) { state.trends = null; renderTrends(); }
   updateHash(); renderFlowers();
@@ -1181,6 +1336,7 @@ function wire(box) {
   }));
   box.querySelectorAll('[data-flowers]').forEach(b => b.addEventListener('click', () => openFlowers(b)));
   on('#flowersAll', 'click', () => { state.flowersAll = !state.flowersAll; render(); });
+  on('#hostsAll', 'click', () => { state.hostsAll = !state.hostsAll; render(); });
   box.querySelectorAll('details.sec').forEach(d => d.addEventListener('toggle', () => { state.secOpen[d.dataset.sec] = d.open; }));
 
   const q = box.querySelector('#qInput');
@@ -1191,7 +1347,7 @@ function wire(box) {
   on('#yearSel', 'change', e => { state.year = e.target.value; scopeCache = null; state.open = null; render(); drawSpeciesDots(false); });
 
   box.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => {
-    state.open = c.dataset.sci; state.listId = null; state.flowersAll = false;
+    state.open = c.dataset.sci; state.listId = null; state.flowersAll = false; state.hostsAll = false;
     if (state.mapped && state.mapped !== state.open) { state.mapped = null; drawSpeciesDots(false); }   // clear the previous butterfly's dots
     render();
     const d = document.getElementById('detail');
@@ -1254,7 +1410,7 @@ function updateHash() {
     if (state.open) parts.push(`sp=${encodeURIComponent(state.open).replace(/%20/g, '+')}`);
   }
   if (state.sources) parts.push(`src=${state.sources.join(',')}`);
-  if (state.flowers) parts.push('flowers=1');
+  if (state.flowers) parts.push(state.fl.cat === 'host' ? 'flowers=host' : 'flowers=1');
   const s = parts.join('&');
   history.replaceState(null, '', location.pathname + location.search + (s ? '#' + s : ''));
 }
@@ -1262,7 +1418,8 @@ function restoreFromHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   const src = (h.get('src') || '').split(',').filter(k => loaded.includes(k));
   if (src.length && src.length < loaded.length) { state.sources = src; applySources(); }
-  if (h.get('flowers') === '1' && flowers) state.flowers = true;
+  if (h.get('flowers') === '1' && flowers) { state.flowers = true; state.fl.cat = 'nectar'; }
+  if (h.get('flowers') === 'host' && hosts) { state.flowers = true; state.fl.cat = 'host'; }
   // Only spots in the pannable area (BC plus a margin) are accepted from a link
   const [[latMin, lngMin], [latMax, lngMax]] = VIEW_BOUNDS;
   const ok = p => p.length === 2 && !p.some(isNaN) && p[0] >= latMin && p[0] <= latMax && p[1] >= lngMin && p[1] <= lngMax;

@@ -4,7 +4,7 @@ read from its Darwin Core Archive (no internet needed once downloaded).
 
 downloaded the archive once into data/raw/ (about 3 MB, CC0):
     curl -L -o data/raw/vascan-dwca.zip "https://data.canadensys.net/ipt/archive.do?r=vascan&v=37.17"
-    (this is cited in app.js)
+    (this is cited in app.js: update VASCAN_VERSION and VASCAN_ACCESSED there for a newer version)
 
 Statuses returned for BC (the same words the VASCAN website uses):
   native      present and native

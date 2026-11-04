@@ -3,7 +3,7 @@ Build data/host-plants.json (plants caterpillars eat) from
 data/hosts-deedes-clean.csv, which scripts/clean_hosts_deedes.py makes.
 
     {
-      "built": "2026-11-03",
+      "built": "2026-11-03", "accessed": "2026-11-03",
       "butterflies": [["Papilio zelicaon", "Anise Swallowtail"], ...],
       "plants": [["Heracleum maximum", "Cow parsnip", "perennial", "native"], ...],
       "rows": [[0, 12], ...],
@@ -24,6 +24,9 @@ from datetime import date
 
 SRC = "data/hosts-deedes-clean.csv"
 OUT = "data/host-plants.json"
+# When the list was copied from https://butterflies.deedesie.com/b-c-host-plants/
+# (shown in the site's citation). Change it when you update data/hosts-Deedes.xlsx.
+ACCESSED = "2026-11-03"
 
 
 def index_of(lookup, key, values, value):
@@ -51,6 +54,7 @@ def main():
     with open(OUT, "w", encoding="utf-8") as f:
         f.write("{\n")
         f.write(f'  "built": "{date.today().isoformat()}",\n')
+        f.write(f'  "accessed": "{ACCESSED}",\n')
         for key, value in [("butterflies", butterflies), ("plants", plants)]:
             f.write(f'  "{key}": [\n' + ",\n".join("    " + json.dumps(v, ensure_ascii=False) for v in value) + "\n  ],\n")
         f.write(f'  "rows": {json.dumps(rows)},\n')
