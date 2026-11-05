@@ -5,14 +5,14 @@ data/hosts-deedes-clean.csv, which scripts/clean_hosts_deedes.py makes.
     {
       "built": "2026-11-03", "accessed": "2026-11-03",
       "butterflies": [["Papilio zelicaon", "Anise Swallowtail"], ...],
-      "plants": [["Heracleum maximum", "Cow parsnip", "perennial", "native"], ...],
+      "plants": [["Heracleum maximum", "Cow parsnip"], ...],
       "rows": [[0, 12], ...],
       "noneKnown": [5, 9, ...]
     }
 
 A row is [butterfly, plant], both positions in their lists. A plant's Latin name is
 a genus ("Salix") when the list gives any species of that genus, and '' for
-"Weedy pioneer plants". Status is from VASCAN ('' = unknown or a genus).
+"Weedy pioneer plants".
 `noneKnown` lists butterflies for which the list says no host plants are known yet.
 
 Usage (from the repo root):
@@ -48,7 +48,7 @@ def main():
             none_known.append(b)
             continue
         p = index_of(plant_index, (r["plant"], r["plant_common"]), plants,
-                     [r["plant"], r["plant_common"], r["plant_type"], r["bc_status"]])
+                     [r["plant"], r["plant_common"]])
         rows.append([b, p])
 
     with open(OUT, "w", encoding="utf-8") as f:

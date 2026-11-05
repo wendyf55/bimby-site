@@ -7,14 +7,14 @@ The page adds these up itself, so the file keeps one  row per record:
     {
       "built": "2026-10-30", "years": [2024, 2026],
       "butterflies": [["Ochlodes sylvanoides", "Woodland Skipper"], ...],
-      "plants": [["Medicago sativa", "Alfalfa", "Fabaceae", "introduced"], ...],
+      "plants": [["Medicago sativa", "Alfalfa", "Fabaceae"], ...],
       "fields": ["butterfly", "plant", "month", "person"],
       "rows": [[0, 12, 7, 3], ...]
     }
 
 'butterfly' and 'plant' index into their lists; 'month' is 1-12; 'person' is a
 number that only tells observers apart (used for "seen by N people"). No names
-or iNaturalist user ids are published. Plant status is from VASCAN ('' = unknown).
+or iNaturalist user ids are published.
 
 Usage (from the repo root):
     python3 scripts/build_plant_visits.py
@@ -47,7 +47,7 @@ def main():
         b = index_of(butterfly_index, r["butterfly"], butterflies)
         butterflies[b] = [r["butterfly"], r["butterfly_common"]]
         p = index_of(plant_index, r["plant"], plants)
-        plants[p] = [r["plant"], r["plant_common"], r["plant_family"], r.get("bc_status", "")]
+        plants[p] = [r["plant"], r["plant_common"], r["plant_family"]]
         person = index_of(person_index, r["user_id"], people)
         month = int(r["date"][5:7])
         rows.append([b, p, month, person])

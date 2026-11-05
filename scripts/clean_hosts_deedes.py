@@ -10,12 +10,9 @@ Steps:
   2. Fix plant name typos and turn "Salix spp" and similar into the genus ("Salix").
   3. Pick one common name per plant: the one used most often in the list, unless
      scripts/deedes_name_map.json gives a better one.
-  4. Add each plant's status in BC from VASCAN's archive (scripts/vascan.py): the
-     full name first ("Urtica dioica subsp. gracilis"), then the species.
-     Genus entries get no status.
-  5. Butterflies whose only entry is "unknown" are kept with an empty plant, so the
+  4. Butterflies whose only entry is "unknown" are kept with an empty plant, so the
      page can say no host plants are known yet.
-The list's "Place" and "AlternatePlantName" columns are not used.
+The list's "Place", "AlternatePlantName" and "PlantCategory" columns are not used.
 
 Usage:
     python3 scripts/clean_hosts_deedes.py
@@ -28,14 +25,12 @@ from collections import Counter
 import openpyxl
 
 from clean_plant_visits import load_butterfly_names
-from vascan import Vascan
 
 SRC = "data/hosts-Deedes.xlsx"
 OUT = "data/hosts-deedes-clean.csv"
 NAME_MAP = "scripts/deedes_name_map.json"
 
-COLUMNS = ["butterfly", "butterfly_common", "plant", "plant_common", "plant_type", "bc_status",
-           "list_butterfly", "list_plant"]
+COLUMNS = ["butterfly", "butterfly_common", "plant", "plant_common", "list_butterfly", "list_plant"]
 
 
 def tidy(value):
@@ -69,11 +64,6 @@ def clean_common(name):
     return name[:1].upper() + name[1:].lower()
 
 
-def plant_type(text):
-    """'shrub/tree' -> 'shrub or tree'; 'unknown' -> ''."""
-    return "" if text.lower() in ("", "unknown") else text.replace("/", " or ")
-
-
 def species_part(sci):
     """'Urtica dioica subsp. gracilis' -> 'Urtica dioica'; '' for genus or family names."""
     words = sci.split()
@@ -86,23 +76,14 @@ def main():
     _, site_common = load_butterfly_names()
     rows = read_list()
 
-    # One common name and type per plant, the most used in the list
-    commons, types = {}, {}
+    # One common name per plant, the most used in the list
+    commons = {}
     for row in rows:
         sci = plant_name(row, plant_fixes)
         if sci and sci != "weedy pioneer":
             commons.setdefault(sci, Counter())[clean_common(row["PlantEnglishName"])] += 1
-            if plant_type(row["PlantCategory"]):
-                types.setdefault(sci, Counter())[plant_type(row["PlantCategory"])] += 1
     plant_common = {sci: common_fixes.get(sci, c.most_common(1)[0][0]) for sci, c in commons.items()}
     plant_common["weedy pioneer"] = common_fixes[""]
-    plant_types = {sci: c.most_common(1)[0][0] for sci, c in types.items()}
-
-    #status in bc -  the full name first
-    # then the species. Genus and group entries get none.
-    vascan = Vascan()
-    status = {sci: vascan.bc_status(sci) or vascan.bc_status(species_part(sci))
-              for sci in plant_common if species_part(sci)}
 
     out, not_on_site, skipped = {}, Counter(), Counter()
     for row in rows:
@@ -123,8 +104,6 @@ def main():
                 "butterfly_common": site_common.get(butterfly) or row["ButterflyEnglishName"],
                 "plant": "" if plant == "weedy pioneer" else plant,
                 "plant_common": plant_common.get(plant, ""),
-                "plant_type": plant_types.get(plant, ""),
-                "bc_status": status.get(plant, ""),
                 "list_butterfly": listed,
                 "list_plant": row["PlantLatinName"],
             }
@@ -145,8 +124,6 @@ def main():
     print(f"\nRead {len(rows)} rows, wrote {len(rows_out)} to {OUT}")
     print(f"{len(with_plants)} butterflies with host plants, {len(unknown)} with none known, "
           f"{len(plants)} plants ({sum(1 for p in plants if not species_part(p))} genus or group entries)")
-    counts = Counter(status.get(p, "") or "no status" for p in plants if species_part(p))
-    print("Plant species by status in BC:", ", ".join(f"{v} {k}" for k, v in sorted(counts.items())))
     unconfirmed = names.get("unconfirmed", {})
     if skipped:
         print("Left out, no confirmed match yet:", ", ".join(n for n in skipped if n in unconfirmed))

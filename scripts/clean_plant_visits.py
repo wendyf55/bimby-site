@@ -12,7 +12,6 @@ Steps:
      up to their species, then scripts/inat_name_map.json is applied.
   6. Add common names: butterflies from the site's own data, plants from
      iNaturalist (saved in data/plant-common-names.json, so they are fetched once).
-  7. Add each plant's status in BC (native, introduced, ...) from vascan
 activity column is dropped
 
 using it:
@@ -24,8 +23,6 @@ import os
 import time
 import urllib.parse
 import urllib.request
-
-from vascan import Vascan
 
 SRC = "data/BIMBY-butterflies-plants.csv"
 OUT = "data/plant-visits-clean.csv"
@@ -39,7 +36,7 @@ BC_PLACE_ID = 7085   # asks iNaturalist for the names used in BC
 
 COLUMNS = [
     "id", "date", "latitude", "longitude", "obscured",
-    "butterfly", "butterfly_common", "plant", "plant_common", "plant_family", "bc_status",
+    "butterfly", "butterfly_common", "plant", "plant_common", "plant_family",
     "user_id", "license", "url", "image_url",
 ]
 
@@ -97,13 +94,6 @@ def add_plant_common_names(plants):
     return names
 
 
-def add_plant_bc_status(plants):
-    """Returns {scientific name: status in BC} from the VASCAN archive (see scripts/vascan.py).
-    Status is '' when VASCAN doesn't know the name."""
-    vascan = Vascan()
-    return {plant: vascan.bc_status(plant) for plant in plants}
-
-
 def capitalize(name):
     """'common yarrow' -> 'Common yarrow' (names come in mixed case)."""
     return name[:1].upper() + name[1:]
@@ -142,7 +132,6 @@ def main():
 
     plants = {row["species"] for row in kept}
     plant_common = add_plant_common_names(plants)
-    plant_status = add_plant_bc_status(plants)
 
     out = []
     not_on_site = {}
@@ -161,7 +150,6 @@ def main():
             "plant": row["species"],
             "plant_common": capitalize(plant_common.get(row["species"], "")),
             "plant_family": row["family"],
-            "bc_status": plant_status.get(row["species"], ""),
             "user_id": row["user_id"],
             "license": row["license"],
             "url": row["url"],
@@ -183,11 +171,6 @@ def main():
           f"{len({r['plant'] for r in out})} plant species")
     no_name = sorted({r["plant"] for r in out if not r["plant_common"]})
     print(f"{len(no_name)} plants without a common name")
-    counts = {}
-    for plant in {r["plant"] for r in out}:
-        status = plant_status.get(plant, "") or "not found in VASCAN"
-        counts[status] = counts.get(status, 0) + 1
-    print("Plant species by status in BC:", ", ".join(f"{v} {k}" for k, v in sorted(counts.items())))
     if not_on_site:
         print("Butterflies not in the site's species list (kept, using iNaturalist's common name):")
         for name, count in sorted(not_on_site.items(), key=lambda x: -x[1]):

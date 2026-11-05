@@ -47,8 +47,8 @@ const state = {
   matches: null, message: '', showEcoInfo: false, placeQ: '',   // placeQ = text in the place search box
   trends: null,                                           // 'near' | 'region' when the trends drawer is open
   flowers: false,                                         // the BC-wide flowers drawer is open
-  fl: { cat: 'host', sort: 'count', native: false, open: null, all: false },   // plants drawer: tab (host | nectar),
-  // flower sort, native only, expanded plant, show all
+  fl: { cat: 'host', sort: 'count', open: null, all: false },   // plants drawer: tab (host | nectar),
+  // flower sort, expanded plant, show all
   secOpen: { months: true, years: true },                 // collapsible sections in a butterfly's detail
   sources: null,                                          // keys of sources shown (null = all loaded)
 };
@@ -797,10 +797,6 @@ function resultsHTML() {
         the Xerces Society (2016) <i>Gardening for Butterflies</i>; Beard, R. <i>Garden Butterflies of the Georgia Basin</i>;
         Campbell, <i>Common Butterflies, Georgia Basin</i>; and E-Fauna BC. Older butterfly names in the list were matched to the
         names used here with iNaturalist and BugGuide; a few that could not be matched yet are left out.</p>` : ''}
-      ${flowers?.hasStatus || hosts ? `<p>Native plant status: Brouillet, L., Desmet, P., Coursol, F., Meades, S.J., Favreau, M., Anions, M.,
-        Bélisle, P., Gendreau, C., Shorthouse, D. and contributors (2010+). <i>Database of Vascular Plants of Canada (VASCAN)</i>.
-        Version ${VASCAN_VERSION}. <a href="https://doi.org/10.5886/zw3aqw" target="_blank" rel="noopener" style="color:var(--link)">doi:10.5886/zw3aqw</a>.
-        Accessed ${fmtDate(VASCAN_ACCESSED)}.</p>` : ''}
       <p>Ecoregions: Ecological Stratification Working Group (1995). <i>A National Ecological Framework for Canada</i>.
         Agriculture and Agri-Food Canada and Environment Canada.
         <a href="https://sis.agr.gc.ca/cansis/nsdb/ecostrat/" target="_blank" rel="noopener" style="color:var(--link)">sis.agr.gc.ca/cansis/nsdb/ecostrat</a>.
@@ -907,18 +903,11 @@ function xercesHTML(lists, list, plants) {
 let flowers = null;
 const FLOWERS_FIRST = 8;          // flowers shown in a butterfly's detail before "Show all"
 const FLOWERS_DRAWER_FIRST = 25;  // flowers shown in the drawer before "Show all"
-// VASCAN archive used by scripts/vascan.py: update both when you download a newer version
-const VASCAN_VERSION = '37.17', VASCAN_ACCESSED = '2026-11-03';
-const NATIVE_STATUS = ['native', 'extirpated'];                          // VASCAN statuses for BC
-// Only what VASCAN says is introduced gets "Not native". 'absent', 'excluded', 'doubtful'
-// and 'mixed' get no tag: they often mean vascan uses a different name for the plant.
-const NOT_NATIVE_STATUS = ['introduced', 'ephemeral'];
-const isNative = st => NATIVE_STATUS.includes(st);
 const plantName = p => p.common || p.sci;
 
 function buildFlowers(d) {
-  const plants = d.plants.map(([sci, common, family, status]) =>
-    ({ sci, common, family, status, n: 0, people: new Set(), butterflies: new Map() }));
+  const plants = d.plants.map(([sci, common, family]) =>
+    ({ sci, common, family, n: 0, people: new Set(), butterflies: new Map() }));
   const byButterfly = {};   // butterfly sci -> Map(plant index -> { plant, n, people })
   for (const [b, p, , person] of d.rows) {
     const plant = plants[p];
@@ -933,16 +922,11 @@ function buildFlowers(d) {
   for (const [sci, m] of Object.entries(byButterfly)) sorted[sci] = [...m.values()].sort(byCount);
   return {
     plants: plants.filter(p => p.n).sort(byCount), butterflies: d.butterflies, byButterfly: sorted,
-    total: d.rows.length, years: d.years, built: d.built, hasStatus: plants.some(p => p.status),
+    total: d.rows.length, years: d.years, built: d.built,
   };
 }
 const flowerYears = () => flowers.years[0] === flowers.years[1] ? flowers.years[0] : flowers.years.join('–');
 
-function nativeTag(status) {
-  if (isNative(status)) return '<span class="tag native" title="Native to British Columbia (VASCAN)">Native</span>';
-  if (NOT_NATIVE_STATUS.includes(status)) return '<span class="tag intro" title="Introduced to British Columbia (VASCAN)">Not native</span>';
-  return '';
-}
 const seenText = (n, people) => `Seen ${plural(n, 'time')} by ${plural(people, 'person', 'people')}`;
 
 // Option 1: in a butterfly's detail, under "Nectar Plants"
@@ -956,7 +940,7 @@ function flowersForHTML(s) {
     <h5 class="plants-sub">Flowers it has been seen feeding at</h5>
     <p class="chart-sub">All of British Columbia, ${flowerYears()} · ${plural(total, 'record')} on ${plural(list.length, 'kind')} of flower</p>
     <ul class="plants flowers">${shown.map(x => `
-      <li><span class="fl-name">${esc(plantName(x.plant))} ${nativeTag(x.plant.status)}<i>${esc(x.plant.sci)}</i></span>
+      <li><span class="fl-name">${esc(plantName(x.plant))} <i>${esc(x.plant.sci)}</i></span>
         <span class="bloom">${seenText(x.n, x.people.size)}</span></li>`).join('')}
     </ul>
     ${list.length > FLOWERS_FIRST ? `<button class="link-btn more-btn" type="button" id="flowersAll">${state.flowersAll ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
@@ -968,26 +952,21 @@ function flowersForHTML(s) {
 // Option 2: drawer with every flower in BC, ranked
 function flowersDrawerHTML() {
   const f = flowers, o = state.fl;
-  let list = o.native ? f.plants.filter(p => isNative(p.status)) : f.plants;
+  let list = f.plants;
   if (o.sort === 'kinds') list = [...list].sort((a, b) => b.butterflies.size - a.butterflies.size || b.n - a.n);
   const shown = o.all ? list : list.slice(0, FLOWERS_DRAWER_FIRST);
-  const known = f.plants.filter(p => isNative(p.status) || NOT_NATIVE_STATUS.includes(p.status));   // plants with a tag
-  const knownN = known.reduce((sum, p) => sum + p.n, 0);
-  const nativeN = known.filter(p => isNative(p.status)).reduce((sum, p) => sum + p.n, 0);
   const nameOf = b => f.butterflies[b][1] || f.butterflies[b][0];
   return `
     <div class="tr-stats">
       <div><b>${fmt(f.total)}</b><span>butterflies seen at flowers</span></div>
       <div><b>${fmt(f.plants.length)}</b><span>kinds of flowers</span></div>
-      ${f.hasStatus && knownN ? `<div><b>${Math.round(100 * nativeN / knownN)}%</b><span>of records on native plants</span></div>`
-      : `<div><b>${flowerYears()}</b><span>years recorded</span></div>`}
+      <div><b>${flowerYears()}</b><span>years recorded</span></div>
     </div>
     <div class="fl-controls">
       <div class="seg" role="group" aria-label="Sort flowers">
         <button type="button" data-flsort="count" aria-pressed="${o.sort === 'count'}">Most sightings</button>
         <button type="button" data-flsort="kinds" aria-pressed="${o.sort === 'kinds'}">Most kinds of butterflies</button>
       </div>
-      ${f.hasStatus ? `<label class="fl-check"><input type="checkbox" id="flNative" ${o.native ? 'checked' : ''}> Native plants only</label>` : ''}
     </div>
     <ol class="fl-list">${shown.map((p, i) => {
         const open = o.open === p.sci;
@@ -997,7 +976,7 @@ function flowersDrawerHTML() {
         <button type="button" class="fl-head" data-plant="${esc(p.sci)}" aria-expanded="${open}">
           <span class="rank">${i + 1}</span>
           <span class="fl-main">
-            <span class="fl-name">${esc(plantName(p))} ${nativeTag(p.status)}<i>${esc(p.sci)}</i></span>
+            <span class="fl-name">${esc(plantName(p))} <i>${esc(p.sci)}</i></span>
             <span class="fl-nums">${seenText(p.n, p.people.size)} · ${plural(p.butterflies.size, 'kind')} of butterfly</span>
           </span>
         </button>
@@ -1010,8 +989,7 @@ function flowersDrawerHTML() {
     <p class="note">These are flowers where people photographed butterflies feeding, across British Columbia, ${flowerYears()}.
       Common plants along roads and in fields show up often because they are everywhere and easy to find, not because
       butterflies like them best. This is not a planting list.</p>
-    <p class="cite">Records: research-grade iNaturalist observations (CC0, CC BY or CC BY-NC), &copy; their observers.
-      ${f.hasStatus ? `Native status: <a href="https://data.canadensys.net/vascan" target="_blank" rel="noopener">VASCAN</a>, the Database of Vascular Plants of Canada.` : ''}</p>`;
+    <p class="cite">Records: research-grade iNaturalist observations (CC0, CC BY or CC BY-NC), &copy; their observers.</p>`;
 }
 
 // ---------- Host plants: what caterpillars eat (B.C. Host Plants list, all of BC) ----------
@@ -1022,7 +1000,7 @@ const HOSTS_FIRST = 8;   // host plants shown in a butterfly's detail before "Sh
 const HOST_LIST_URL = 'https://butterflies.deedesie.com/b-c-host-plants/';
 
 function buildHosts(d) {
-  const plants = d.plants.map(([sci, common, type, status]) => ({ sci, common, type, status, butterflies: [] }));
+  const plants = d.plants.map(([sci, common]) => ({ sci, common, butterflies: [] }));
   const byButterfly = {};   // butterfly sci -> its plants
   for (const [b, p] of d.rows) {
     plants[p].butterflies.push(b);
@@ -1052,8 +1030,7 @@ function hostsForHTML(s) {
     <h5 class="plants-sub">Plants its caterpillars eat</h5>
     <p class="chart-sub">${plural(list.length, 'plant')} listed for British Columbia</p>
     <ul class="plants flowers">${shown.map(p => `
-      <li><span class="fl-name">${esc(plantName(p))} ${nativeTag(p.status)}${hostSci(p)}</span>
-        ${p.type ? `<span class="bloom">${esc(p.type)}</span>` : ''}</li>`).join('')}
+      <li><span class="fl-name">${esc(plantName(p))} ${hostSci(p)}</span></li>`).join('')}
     </ul>
     ${list.length > HOSTS_FIRST ? `<button class="link-btn more-btn" type="button" id="hostsAll">${state.hostsAll ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
     <p class="cite">${hostSource()}
@@ -1070,20 +1047,13 @@ function hostTabHTML(s, lists, list, plants) {
 // Drawer tab: every host plant in the list, ranked by how many kinds of butterflies use it
 function hostsDrawerHTML() {
   const h = hosts, o = state.fl;
-  let list = o.native ? h.plants.filter(p => isNative(p.status)) : h.plants;
+  const list = h.plants;
   const shown = o.all ? list : list.slice(0, FLOWERS_DRAWER_FIRST);
   const nameOf = b => h.butterflies[b][1] || h.butterflies[b][0];
-  // Share of host plants that are native, out of those with a Native / Not native tag
-  const tagged = h.plants.filter(p => isNative(p.status) || NOT_NATIVE_STATUS.includes(p.status));
-  const nativeShare = tagged.length ? Math.round(100 * tagged.filter(p => isNative(p.status)).length / tagged.length) : null;
   return `
     <div class="tr-stats">
       <div><b>${fmt(h.plants.length)}</b><span>host plants</span></div>
       <div><b>${fmt(Object.keys(h.byButterfly).length)}</b><span>butterflies with known host plants</span></div>
-      ${nativeShare !== null ? `<div><b>${nativeShare}%</b><span>of host plants are native</span></div>` : ''}
-    </div>
-    <div class="fl-controls">
-      <label class="fl-check"><input type="checkbox" id="flNative" ${o.native ? 'checked' : ''}> Native plants only</label>
     </div>
     <ol class="fl-list">${shown.map((p, i) => {
     const key = p.sci || p.common, open = o.open === key;
@@ -1093,8 +1063,8 @@ function hostsDrawerHTML() {
         <button type="button" class="fl-head" data-plant="${esc(key)}" aria-expanded="${open}">
           <span class="rank">${i + 1}</span>
           <span class="fl-main">
-            <span class="fl-name">${esc(plantName(p))} ${nativeTag(p.status)}${hostSci(p)}</span>
-            <span class="fl-nums">Food for ${plural(p.butterflies.length, 'kind')} of butterfly${p.type ? ` · ${esc(p.type)}` : ''}</span>
+            <span class="fl-name">${esc(plantName(p))} ${hostSci(p)}</span>
+            <span class="fl-nums">Food for ${plural(p.butterflies.length, 'kind')} of butterfly</span>
           </span>
         </button>
         ${open ? `<ul class="fl-bf" aria-label="Butterflies whose caterpillars eat ${esc(plantName(p))}">${bf.map(n =>
@@ -1105,8 +1075,7 @@ function hostsDrawerHTML() {
     ${list.length > FLOWERS_DRAWER_FIRST ? `<button class="link-btn more-btn" type="button" id="flAll">${o.all ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
     <p class="note">These are plants the caterpillars of BC butterflies are known to eat, gathered from field guides.
       Many are still unknown, so a butterfly may use plants not listed here.</p>
-    <p class="cite">${hostSource()}
-      Native status: <a href="https://data.canadensys.net/vascan" target="_blank" rel="noopener">VASCAN</a>, the Database of Vascular Plants of Canada.</p>`;
+    <p class="cite">${hostSource()}</p>`;
 }
 
 function renderFlowers() {
@@ -1140,7 +1109,6 @@ function renderFlowers() {
     el.querySelector('.tr-body').scrollTop = 0;
     el.querySelector(`.fl-tabs [data-flcat="${b.dataset.flcat}"]`)?.focus({ preventScroll: true });
   }));
-  el.querySelector('#flNative')?.addEventListener('change', e => { state.fl.native = e.target.checked; redraw(); });
   el.querySelector('#flAll')?.addEventListener('click', () => { state.fl.all = !state.fl.all; redraw(); });
   el.querySelectorAll('[data-plant]').forEach(b => b.addEventListener('click', () => {
     state.fl.open = state.fl.open === b.dataset.plant ? null : b.dataset.plant; renderFlowers();
