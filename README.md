@@ -1,168 +1,337 @@
-# Butterflies of BC
+# Butterflies of British Columbia (BIMBY)
 
-A citizen-science map of BC.
+This repository hosts a website which displays butterfly occurrence records (data details below)
+from British Columbia. Also shown are host plants and recorded nectar plants of BC butterfly species.
+
+Visitors pick a spot (their location, a click on the map, a town or postal code, or an area they draw)
+and see which butterflies have been recorded nearby or in their ecoregion, when they fly, how records change
+over the years, and which plants each butterfly uses. A small guessing game uses the same data.
+
+- **Live site:** <https://wendyf55.github.io/bimby-site/> (GitHub Pages, served from the
+  `main` branch)
+- **iNaturalist project (2026):** <https://www.inaturalist.org/projects/2026-butterflies-in-my-backyard-bimby-project>
+
+## TODO
+
+- Get pictures and descriptions from G + S. Right now 6 butterflies have no
+  description and 2 have no photo; see [Species descriptions & photos](#species-descriptions--photos).
+- Replace the Guppy & Shepard occurrence CSV with the final version, which will have a
+  source column. Then update the citation in the "About this data" text (`app.js`)
+  and in `scripts/build_observations.py`, because not every record comes from Guppy &
+  Shepard (2001).
+- Move the repository to the project's own GitHub account. GitHub Pages and the
+  iNaturalist workflow need to be switched on again there (see [Deployment](#deployment)).
+- Buy a domain and point it at GitHub Pages.
+- Some butterflies are probably counted twice when both sources are shown:
+  - About 68,000 Guppy & Shepard records also appear in iNaturalist (same species and
+    date, within 2 km).
+  - A few butterflies go by different names in the two sources (e.g. *Plebejus
+    scudderii* vs *P. idas / anna / melissa*). Create a list of name-mismatches for review.
+  - Any merge needs a source for each name.
+- Check the licence for the ecoregion dataset.
 
 ## Running locally
 
-This site must be served over HTTP (not opened as a file), because it uses `fetch()`
-to load the data files. From the repo root:
+The site is plain HTML, CSS and JavaScript with no build step. It has to be served over
+HTTP (not opened as a file) because it loads its data with `fetch()`. From the repo root:
 
     python3 -m http.server 8000
 
-Then open <http://localhost:8000>
+Then open <http://localhost:8000> (and <http://localhost:8000/game/> for the game).
 
-The Python scripts in `scripts/` need a few packages (Python 3.10+):
+The Python scripts in `scripts/` need Python 3.10+ and a few packages:
 
     pip install -r requirements.txt
 
+Run every script from the repo root.
+
 ## Repository structure
 
-    index.html                     Page structure; loads the files below
-    styles.css                     All the styling
-    app.js                         The app: map, place search, butterfly lists, charts, shareable links
-    species-info.js                Species photos + descriptions (thumbnails and detail cards)
-    requirements.txt               Python packages for the scripts
-    .github/workflows/
-      update-inat.yml              Refreshes the iNaturalist data on Mondays and Thursdays
-    data/                          Git-ignored, except the files the site and the weekly job need (*)
-      observations-sg.json         * Guppy & Shepard records, in the format the page loads (generated)
-      observations-inat.json       * iNaturalist records, in the format the page loads (generated)
-      inat/state.json              * When the iNaturalist data was last pulled. The raw download
-                                     (inat/cache.jsonl) is kept in the GitHub Actions cache, not in git
-      occurrence_data_subset.csv   Guppy & Shepard occurrence data (CSV export of the .numbers file)
-      plant-lists.json             * Host/nectar plant lists, one entry per region/source
-      ecoregions.geojson           * Simplified ecoregion outlines (generated)
-      ecozones.geojson             Ecozone outlines (generated; not currently used)
-      species-info.json            * Species descriptions + photos (generated)
-      species-info-overrides.json  * Optional hand fixes for the above
-      postal-fsa.json              * BC postal code areas for the place search (generated)
-      raw/                         Ecoregion + ecozone shapefile zips from AAFC,
-                                   FSA boundary zip from Statistics Canada
+    LICENSE                       MIT License (code only)
+    index.html                    Main page (markup only)
+    styles.css                    All the styling (also used by the game)
+    app.js                        The main page: map, place search, butterfly lists and detail,
+                                  plants drawer, trends drawer, shareable links
+    species-info.js               Species photos and descriptions (thumbnails and detail cards)
+    game/                         "Where in BC?" guessing game (index.html, game.js, game.css)
+    vendor/leaflet/               Leaflet 1.9.4 map library, self-hosted
+    requirements.txt              Python packages for the scripts
+    .github/
+      workflows/update-inat.yml   Refreshes the iNaturalist data on Mondays and Thursdays
+      requirements-ci.txt         Exact package versions for that workflow
+      dependabot.yml              Monthly pull requests when the workflow's actions or packages update
+    data/                         Git-ignored, except the files marked * (what the site loads)
+      observations-sg.json        * Guppy & Shepard records (generated)
+      observations-inat.json      * iNaturalist records (generated by the workflow)
+      inat/state.json             * When iNaturalist was last pulled
+      inat/cache.jsonl              Raw iNaturalist download (kept in the GitHub Actions cache)
+      species-info.json           * Species descriptions and photos (generated)
+      species-info-overrides.json * Optional hand fixes for the above (doesn't exist yet)
+      plant-visits.json           * Flowers butterflies were seen feeding at (generated)
+      host-plants.json            * Plants caterpillars eat (generated)
+      ecoregions.geojson          * Simplified ecoregion outlines (generated)
+      postal-fsa.json             * BC postal code areas for the place search (generated)
+      occurrence_data_subset.csv    Guppy & Shepard occurrence data (input)
+      BIMBY-butterflies-plants.csv  iNaturalist butterflies photographed on flowers (input)
+      plant-visits-clean.csv        Cleaned version of the above (intermediate)
+      plant-common-names.json       Flower common names fetched from iNaturalist (cache)
+      hosts-Deedes.xlsx             B.C. Host Plants list (input)
+      hosts-deedes-clean.csv        Cleaned version of the above (intermediate)
+      deedes-name-check.csv         Butterfly name check against iNaturalist (review table)
+      raw/                          Downloaded boundary files (see below)
     scripts/
-      source_files.py              Shared by the source builders: ecoregion tagging, common names,
-                                   writing data/observations-<source>.json
-      build_observations.py        Builds observations-sg.json from the occurrence CSV
-      fetch_inat.py                Downloads iNaturalist observations into data/inat/cache.jsonl
-      build_inat.py                Builds observations-inat.json from that download
-      inat_name_map.json           iNaturalist names -> names used on the site (lumped taxa)
-      build_ecoregions.py          Builds ecoregions.geojson and ecozones.geojson
-      build_species_info.py        Builds species-info.json (needs internet)
-      build_postal.py              Builds postal-fsa.json from the FSA boundary file
+      source_files.py             Shared by the observation builders: ecoregion tagging,
+                                  common names, writing data/observations-<source>.json
+      build_observations.py       Guppy & Shepard CSV -> observations-sg.json
+      fetch_inat.py               Downloads iNaturalist observations -> data/inat/cache.jsonl
+      build_inat.py               data/inat/cache.jsonl -> observations-inat.json
+      inat_name_map.json          iNaturalist names -> names used on the site (lumped taxa)
+      build_species_info.py       Descriptions and photos -> species-info.json
+      clean_plant_visits.py       BIMBY-butterflies-plants.csv -> plant-visits-clean.csv
+      build_plant_visits.py       plant-visits-clean.csv -> plant-visits.json
+      clean_hosts_deedes.py       hosts-Deedes.xlsx -> hosts-deedes-clean.csv
+      build_host_plants.py        hosts-deedes-clean.csv -> host-plants.json
+      deedes_name_map.json        Host list butterfly and plant names -> names used on the site
+      check_butterfly_names.py    Checks deedes_name_map.json against iNaturalist
+      build_ecoregions.py         Ecoregion shapefiles -> ecoregions.geojson
+      build_postal.py             Statistics Canada FSA boundaries -> postal-fsa.json
+
+Most data inputs are not in git. Keep a copy of `data/` somewhere safe (with the lab's
+files) so the generated files can be rebuilt.
+
+## What runs automatically
+
+**Updating the iNaturalist data.** `.github/workflows/update-inat.yml` runs every Monday and
+Thursday at 11:17 UTC. It can also be started by hand from the Actions tab ("Run
+workflow"); tick "full" to re-download everything. Each run:
+
+1. Downloads new and changed observations (`fetch_inat.py`).
+2. Rebuilds `observations-inat.json` (`build_inat.py`).
+3. Fetches descriptions and photos for any new species (`build_species_info.py`).
+4. Commits the result if anything changed.
+
+The download (~30 MB) is kept in the GitHub Actions cache, not in git.
+GitHub deletes cache entries that go unused for 7 days, which is why
+the workflow runs twice a week. If the cache is ever gone, the next run simply does a
+full download.
+
+Every 28 days the workflow does a full re-download, which removes
+deleted observations and ones that are no longer research grade. A full download takes
+over an hour. The workflow stops itself after 100 minutes, saves its progress and starts
+a follow-up run.
+
+Nothing else updates automatically. Everything else is rebuilt by hand with the steps below.
+
+## Updating the data by hand
+
+| To update                  | Run (from the repo root)                                                  | Needs internet |
+| -------------------------- | ------------------------------------------------------------------------- | -------------- |
+| Guppy & Shepard records    | `python3 scripts/build_observations.py`, then `build_species_info.py`     | for species info |
+| iNaturalist records        | `python3 scripts/fetch_inat.py`, then `build_inat.py` (or run the workflow) | yes          |
+| Descriptions and photos    | `python3 scripts/build_species_info.py` (`--refresh` re-fetches all)      | yes            |
+| Flowers butterflies visit  | `python3 scripts/clean_plant_visits.py`, then `build_plant_visits.py`     | yes (first run) |
+| Host plants                | `python3 scripts/clean_hosts_deedes.py`, then `build_host_plants.py`      | no             |
+| Ecoregions                 | `python3 scripts/build_ecoregions.py`, then rebuild both observation files | no            |
+| Postal code areas          | `python3 scripts/build_postal.py`                                         | no             |
+
+Commit the regenerated `data/*.json` files afterwards; the site serves whatever is in
+`main`.
 
 ## Data sources
 
-### Butterfly occurrences — Guppy & Shepard (2001)
+### Butterfly occurrences: Guppy & Shepard
 
-- **Source:** Guppy, C., & Shepard, J. (2001). *Butterflies of British Columbia:
+- **Citation:** Guppy, C., & Shepard, J. (2001). *Butterflies of British Columbia:
   Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington,
   Northern Oregon, Northern Idaho, and Northwestern Montana.* UBC Press.
-- **File:** `Occurrence_data-subset.numbers` (added 2026-10-05), exported to
-  `data/occurrence_data_subset.csv`.
-- **Contents:** 104,279 records of 50 species, 1950–2025, all in British Columbia;
-  every record has coordinates and a date. Most common: Small White (8,384),
-  Woodland Skipper (5,386), Lorquin's Admiral (4,871).
-- **Fields used:** `Species_binomial`, `Latitude`, `Longitude`, `Date`; `id` is the
-  row number. The data has no common names, so `build_observations.py` keeps them in a
-  `COMMON_NAMES` table (all 50 species, including the four lumped taxa such as
-  *Celastrina echo-asheri*); a species missing from it falls back to `species-info.json`.
-- **Pipeline:** `python3 scripts/build_observations.py` (add
-  `--from-numbers Occurrence_data-subset.numbers` to re-export the CSV first; that needs
-  `numbers-parser`) writes `data/observations-sg.json`, tagging each record's ecoregion.
-  Then `scripts/build_species_info.py` for any new species.
+- **File:** `data/occurrence_data_subset.csv`, exported from `Occurrence_data-subset.numbers`
+  (added 2026-10-05). It has 104,279 records of 50 species from 1950 to 2025, all in BC,
+  each with coordinates and a date.
+- **Note:** despite the citation, not every record comes from Guppy & Shepard; most are
+  after 2001. A final version will be implemented soon (see TODO).
+- **Fields used:** `Species_binomial`, `Latitude`, `Longitude`, `Date`. The record id is the
+  row number.
+- **Common names:** the data has none, so `build_observations.py` keeps them in its
+  `COMMON_NAMES` table.
+- **Build:** `python3 scripts/build_observations.py` writes `data/observations-sg.json`
+  and tags each record's ecoregion. Add `--from-numbers Occurrence_data-subset.numbers`
+  to re-export the CSV from the Numbers file first (needs `numbers-parser`).
 
-### Nectar & host plants — Xerces Society
+### Butterfly occurrences: iNaturalist
 
-- **Source:** Adamson, N. L., Fallon, C., & Vaughan, M. (2018).
-  *Monarch Butterfly Nectar Plant Lists for Conservation Plantings.*
-  The Xerces Society for Invertebrate Conservation. Publication 18-003_02.
-- **URL:** <https://xerces.org/sites/default/files/publications/18-003_02_Monarch-Nectar-Plant-Lists-FS_web%20-%20Jessa%20Kay%20Cruz.pdf>
+- **What's included:**
+  - research-grade butterfly observations (taxon 47224, Papilionoidea) in British
+    Columbia (place 7085);
+  - only observations their observers licensed CC0, CC BY or CC BY-NC.
+  "All rights reserved", NoDerivs and ShareAlike observations are not downloaded.
+- **Cleaning (`build_inat.py`):**
+  - Subspecies are rolled up to species.
+  - `scripts/inat_name_map.json` merges iNaturalist's split taxa into the lumped names
+    Guppy & Shepard use (e.g. *Celastrina echo* -> *Celastrina echo-asheri*).
+  - Records with location accuracy worse than 5 km are dropped.
+  - Records whose observer hid the exact location (blurred by about 20 km) are kept and
+    flagged. The page leaves them out of small "near you" areas.
+- **How it downloads:** `fetch_inat.py` follows iNaturalist's recommended API practices
+  (about one request per second, paging by id). Its header explains the incremental and
+  full modes.
 
-### Ecoregions — National Ecological Framework for Canada
-
-- **Source:** Agriculture and Agri-Food Canada, *A National Ecological Framework for
-  Canada* — ecoregion and ecozone shapefiles, from
-  <https://sis.agr.gc.ca/cansis/nsdb/ecostrat/gis_data.html> (Open Government Licence – Canada).
-- **Contents:** 194 ecoregions (218 polygons) grouped into 15 ecozones, NAD83 lat/long.
-- **Raw files:** `data/raw/ecoregion_shp.zip`, `data/raw/ecozone_shp.zip` (downloaded 2026-09-25).
-- **Pipeline:** `scripts/build_ecoregions.py` (packages from `requirements.txt`) writes:
-  - `data/ecoregions.geojson` — outlines simplified to ~2 km (shared borders kept
-    identical), for the map and the "Your ecoregion" view.
-  - `data/ecozones.geojson` — the 15 ecozones, merged from the simplified ecoregions
-    (so their borders line up exactly). Not used by the page right now.
-- **Tagging:** each record's ecoregion is worked out when its source file is built
-  (`scripts/source_files.py`), using the same simplified outlines the page uses. Points
-  just off the coast snap to the nearest ecoregion within ~5 km, and the page does the
-  same for a clicked spot, so the two always agree; a handful of records outside Canada
-  are left untagged. If the outlines change, rebuild both sources
-  (`build_observations.py`, `build_inat.py`).
-
-### Species descriptions & photos — Wikipedia + iNaturalist
+### Species descriptions & photos
 
 - **Descriptions:** the first paragraph of each species' English Wikipedia article
-  (REST "page summary" API). Wikipedia text is **CC BY-SA 4.0**; every description on
-  the site links back to its article with the licence.
-- **Photos:** each species' iNaturalist taxon photo (the one on its iNaturalist
-  species page). "All rights reserved" photos are skipped in favour of the next openly
-  licensed photo iNaturalist has for that species. Licences are mostly CC BY-NC
-  (fine for a non-commercial research site); every photo is shown with the
-  photographer's credit and licence. If iNaturalist has nothing licensed, the
-  Wikipedia lead image is used (credit + licence from Wikimedia Commons).
-- **Pipeline:** `python3 scripts/build_species_info.py` (standard library only, needs
-  internet, ~5–8 min for ~250 species) writes `data/species-info.json`. Re-running only
-  fetches species that are new; `--refresh` re-fetches everything. Wrong or missing
-  matches can be fixed by hand in `data/species-info-overrides.json` (see the script's
-  header); a species is fetched again whenever its override is added, changed or
-  removed. Pages work without the file — they just show no photos/descriptions.
-- **On the pages:** a small photo next to each butterfly in the lists, and the photo +
-  description at the top of each butterfly's detail view.
+  (CC BY-SA 4.0), linked back to the article.
+- **Photos:**
+  - The species' iNaturalist taxon photo, or the next openly licensed one if that photo
+    is "all rights reserved".
+  - If iNaturalist has none, the Wikipedia lead image from Wikimedia Commons.
+  - Every photo is shown with its photographer's credit and licence.
+- **Build:** `python3 scripts/build_species_info.py`.
+  - It only fetches species that are new; `--refresh` re-fetches everything.
+  - It never removes species, so delete an entry by hand if a species leaves the site.
+- **Manual fixes:** add them in `data/species-info-overrides.json` (format in the script's
+  header). A species is fetched again whenever its override changes.
+- **Missing at the moment (2026-11-16):**
+  - No description: *Argynnis edwardsii*, *Colias skinneri*, *Cupido amyntula-comyntas*,
+    *Euphilotes heracleoides*, *Euphydryas colon*, *Plebejus scudderii*.
+  - No photo: *Cupido amyntula-comyntas*, *Plebejus scudderii*.
 
-### Postal code areas — Statistics Canada FSA boundaries
+### Nectar Plants
+
+- **Source:** `data/BIMBY-butterflies-plants.csv`, iNaturalist observations of butterflies
+  photographed on a plant, with the plant's identification. The file has 21,415 rows
+  from 8 provinces. It is a fixed file; no script downloads it.
+- **Cleaning (`clean_plant_visits.py`):**
+  - Keeps BC only.
+  - Keeps records where both the butterfly and the plant are research grade.
+  - Keeps CC0, CC BY and CC BY-NC records only.
+  - Keeps plants identified to species, and drops records whose "plant" isn't a plant.
+  - Matches butterfly names to the site's names.
+  - Plant common names come from iNaturalist and are cached in
+    `data/plant-common-names.json`.
+- **Result:** 7,411 records of 114 butterflies on 248 plants, from 33 observers.
+- **Privacy:** `build_plant_visits.py` writes `data/plant-visits.json` with observers
+  replaced by anonymous numbers (used only for "seen by N people").
+- **On the site:** counts are for all of BC, not per area. They show where people looked,
+  not which flowers butterflies prefer.
+
+### Host plants: B.C. Host Plants (Deedes & Hocking)
+
+- **Source:** Stephen Deedes and Sally Hocking, *B.C. Host Plants*, The Butterflyway Lane,
+  <https://butterflies.deedesie.com/b-c-host-plants/>, saved as `data/hosts-Deedes.xlsx`.
+  The list draws on:
+  - Acorn & Sheldon (2006)
+  - Guppy & Shepard (2001)
+  - Pojar & MacKinnon (1994)
+  - Xerces Society (2016)
+  - Beard and Campbell (Georgia Basin guides)
+  - E-Fauna BC
+  Used with the authors' permission.
+- **Cleaning (`clean_hosts_deedes.py`):**
+  - Butterfly names are matched to the site's names with `scripts/deedes_name_map.json`.
+    Every match there was checked with `check_butterfly_names.py` (iNaturalist), BugGuide
+    or Wikipedia.
+  - Names that couldn't be matched are left out (`null`).
+  - Genus-level entries ("*Salix* spp.") are kept as "any species".
+- **Build:** `build_host_plants.py` writes `data/host-plants.json`. Update its `ACCESSED`
+  date when the spreadsheet is refreshed.
+- **Result:** 136 butterflies with host plants, 10 with none known, 182 plants.
+
+### Ecoregions: National Ecological Framework for Canada
+
+- **Source:** Ecological Stratification Working Group (1995), *A National Ecological
+  Framework for Canada*, Agriculture and Agri-Food Canada. Shapefiles from
+  <https://sis.agr.gc.ca/cansis/nsdb/ecostrat/gis_data.html>, saved as
+  `data/raw/ecoregion_shp.zip` and `data/raw/ecozone_shp.zip` (downloaded 2026-09-25).
+  Open Government Licence – Canada.
+- **Build:** `build_ecoregions.py` writes `data/ecoregions.geojson`:
+  - 194 ecoregions, outlines simplified to about 2 km;
+  - each region carries its ecozone's name;
+  - the US spelling "Okanogan" is changed to "Okanagan".
+- **Matching records to ecoregions:** each record's ecoregion is worked out when its source
+  file is built (`source_files.py`). A spot just off the coast counts in the nearest
+  ecoregion within about 5 km, and the page uses the same rule, so the two agree.
+  If the outlines change, rebuild both observation files.
+
+### Postal code areas: Statistics Canada
 
 - **Source:** Statistics Canada, *Census Forward Sortation Area Boundary File, 2021*
-  (catalogue 92-179-X), cartographic boundaries, shapefile:
-  <https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/files-fichiers/lfsa000b21a_e.zip>
-  (Statistics Canada Open Licence).
-- **Why only the first three characters:** full six-character postal code locations
-  are licensed by Canada Post (and Statistics Canada's Postal Code Conversion File
-  can't be redistributed), but forward sortation area (FSA) boundaries — the "V6T" in
-  "V6T 1Z4" — are open. City FSAs are a few km across, close enough for a 5 km search.
-- **Raw file:** `data/raw/lfsa000b21a_e.zip` (downloaded 2026-10-16, ~160 MB; Statistics
-  Canada's site has to be opened in a browser — scripted downloads are refused).
-- **Pipeline:** `python3 scripts/build_postal.py` (packages from `requirements.txt`;
-  the boundaries are in Statistics Canada Lambert and are reprojected to lat/long)
-  writes `data/postal-fsa.json` (~130 KB): one entry per BC FSA (191, all starting
-  with V) with a point well inside the area and its size in km². "Wide" FSAs — rural
-  codes (second character 0, e.g. V0H) and any larger than 250 km² (52 in all) — also
-  carry an outline simplified to ~2 km.
-- **On the page:** the place search recognises postal codes ("V6T 1Z4", "v6t1z4",
-  "V6T"; a letter O typed for a zero is accepted) and looks them up in this file,
-  loaded only on the first postal code search, instead of OpenStreetMap:
-  - city FSA → pin at the area's point, labelled with the town, e.g. "Vancouver,
-    British Columbia (V6T)";
-  - wide FSA → the area is outlined on the map and the visitor is asked to click their
-    spot or search their town (a pin in the middle could be far from them);
-  - non-BC code → "…is a postal code in Alberta. This map covers British Columbia only";
-  - if the file is missing, the search falls back to OpenStreetMap.
-- **Town search:** other text goes to OpenStreetMap's Nominatim geocoder, limited to a
-  rectangle around BC; results are then filtered to BC by address (the rectangle also
-  takes in part of Alberta, e.g. Banff and Jasper).
+  (92-179-X), saved as `data/raw/lfsa000b21a_e.zip` (~160 MB, downloaded 2026-10-16; the
+  site must be opened in a browser, as scripted downloads are refused). Statistics Canada
+  Open Licence.
+- **Why only three characters:** only the first three characters of a postal code (e.g.
+  "V6T") are used. Full postal code locations are licensed by Canada Post.
+- **Build:** `build_postal.py` writes `data/postal-fsa.json`:
+  - one entry per BC postal code area, with a point inside it;
+  - an outline for large rural areas.
+- **Town search:** other place names go to OpenStreetMap's Nominatim search, filtered to BC.
 
-## `plant-lists.json` structure
+### Map
 
-An array of "lists". Each list is one plant recommendation set, tagged with the
-butterfly it applies to, its geographic region, and its source (for attribution and
-for the in-app "which list?" selector):
+Map tiles © OpenStreetMap contributors. Map library: Leaflet 1.9.4.
 
-    {
-      "id": "monarch-nectar-xerces-maritime-nw",
-      "butterfly": { "scientificName": "Danaus plexippus", "commonName": "Monarch" },
-      "region": "Maritime Northwest (n.w. CA, w. OR, w. WA)",
-      "source": { "org": "...", "title": "...", "authors": [...], "year": 2018, "url": "..." },
-      "plants": [
-        { "scientificName": "...", "commonName": "...", "bloom": "May–Aug", "isHost": true }
-      ]
-    }
+## How the page works
 
-Adding another region or another source = appending another object to this array.
-The app groups lists by butterfly species, so a species with multiple lists gets a
-dropdown to choose which to view.
+- **Data files:** each data file is loaded once. If an optional one (flowers, host plants,
+  photos, postal codes) is missing, that feature quietly disappears rather than breaking
+  the page.
+- **Observation file format:** documented at the top of `scripts/source_files.py`.
+  - The page's source labels come from `SOURCES` in `app.js`.
+  - Adding a new source means writing `data/observations-<key>.json` and adding it there.
+- **Shareable links:** the address after `#` keeps the view, so links can be shared:
+
+  | Key      | Meaning                                                      |
+  | -------- | ------------------------------------------------------------ |
+  | `at`     | spot, as `lat,lng`                                           |
+  | `r`      | radius in km                                                 |
+  | `poly`   | a drawn area instead, as `lat,lng;lat,lng;…`                 |
+  | `view`   | `region` for the ecoregion view                              |
+  | `year`   | year filter                                                  |
+  | `month`  | month filter (1–12)                                          |
+  | `sp`     | the butterfly that is open                                   |
+  | `src`    | which source is shown                                        |
+  | `flowers`| the plants drawer is open: `host` (Host Plants tab) or `1` (Flowers tab) |
+
+- **Guessing game:** `game/` picks a random 15 km area with at least 5 species recorded in
+  the last 10 years (both sources, blurred iNaturalist locations left out). The player
+  guesses where it is on the map. Its settings are constants at the top of `game/game.js`.
+- **Testing:** there are no automated tests. After a change, serve the site locally and
+  check:
+  - the start screen;
+  - a place search;
+  - a drawn area;
+  - a butterfly's detail (both plant tabs);
+  - both drawers;
+  - the game, on a phone-sized window too.
+
+## Deployment
+
+GitHub Pages serves the `main` branch from the repo root (Settings → Pages). `.nojekyll`
+stops GitHub from processing the files.
+
+When the repository moves to another account:
+
+1. Turn Pages on there.
+2. Allow the workflow to write to the repo (Settings → Actions → General → Workflow
+   permissions → "Read and write permissions").
+3. Expect the first iNaturalist run to do a full download, since the Actions cache doesn't
+   move with the repo.
+
+For a custom domain, add it under Settings → Pages (GitHub then creates a `CNAME` file)
+and set up the DNS records GitHub lists.
+
+## Licences
+
+**Code:** MIT License (see `LICENSE`). This covers the code only, not the data.
+
+**Data and content:** these stay under their own terms.
+
+- iNaturalist records: each under its observer's licence (CC0, CC BY or CC BY-NC). Taken
+  together, use is non-commercial only.
+- Descriptions: Wikipedia text, CC BY-SA 4.0.
+- Photos: each under the licence shown with it.
+- Ecoregions and postal code areas: the Open Government Licence – Canada and the
+  Statistics Canada Open Licence.
+- Host plant list: used with the authors' permission.
+- Guppy & Shepard data: published with permission.
+
+**Leaflet:** BSD 2-Clause licence; its copyright notice is kept at the top of
+`vendor/leaflet/leaflet.js`.

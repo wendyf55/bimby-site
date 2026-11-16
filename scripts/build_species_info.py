@@ -289,8 +289,9 @@ def save(info, species):
             "descriptions": "Wikipedia (CC BY-SA 4.0), first paragraph of each article",
             "photos": "iNaturalist taxon photos (licence per photo); Wikimedia Commons fallback",
         },
-        # Keep every species already in the file: the weekly iNaturalist job only
-        # has the iNat source, so dropping "unused" species would lose the others.
+        # Keep every species already in the file. Nothing is removed automatically
+        # (a source file missing locally would otherwise wipe its species);
+        # delete an entry by hand if a species is no longer on the site.
         "species": {s: info[s] for s in sorted(info)},
     }
     tmp = OUT + ".tmp"                   # write then swap, so a crash never leaves half a file

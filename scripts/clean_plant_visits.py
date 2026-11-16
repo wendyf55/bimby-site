@@ -1,20 +1,20 @@
 """
-cleans the bimby nectaring data (data/BIMBY-butterflies-plants.csv) into
+Clean the BIMBY nectaring data (data/BIMBY-butterflies-plants.csv) into
 data/plant-visits-clean.csv: one row per butterfly seen on a plant.
 
 Steps:
-  1. Keep bc only.
+  1. Keep British Columbia only.
   2. Keep research-grade records only, for both the butterfly and the plant.
   3. Keep licences the site already uses: CC0, CC BY, CC BY-NC.
   4. Keep plants identified to species (drop genus, family, etc.), and drop
-     records whose "plant" is rnot a plant
+     records whose "plant" is not a plant.
   5. Match butterfly names to the names used on the site: subspecies are rolled
      up to their species, then scripts/inat_name_map.json is applied.
   6. Add common names: butterflies from the site's own data, plants from
      iNaturalist (saved in data/plant-common-names.json, so they are fetched once).
-activity column is dropped
+The activity column is dropped.
 
-using it:
+Usage (from the repo root):
     python3 scripts/clean_plant_visits.py
 """
 import csv

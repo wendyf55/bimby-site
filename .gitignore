@@ -5,7 +5,6 @@ data/*
 !data/species-info.json
 !data/observations-inat.json
 !data/inat/
-!data/plant-lists.json
 !data/plant-visits.json
 !data/host-plants.json
 !data/postal-fsa.json

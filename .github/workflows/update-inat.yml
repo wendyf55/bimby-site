@@ -1,4 +1,4 @@
-# Weekly refresh of the iNaturalist data (research-grade butterflies in BC).
+# Twice-weekly refresh of the iNaturalist data (research-grade butterflies in BC).
 #
 # Runs every Monday and Thursday, and on demand from the Actions tab ("Run workflow";
 # tick "full" to force a complete re-pull). See scripts/fetch_inat.py for how it
@@ -63,7 +63,7 @@ jobs:
         id: fetch
         run: python scripts/fetch_inat.py --time-limit 100 ${{ inputs.full && '--full' || '' }}
 
-      # --- Pull not finished yet: keep progress, start the next run, stop here ---
+      # Pull not finished yet: keep progress, start the next run, stop here
       - name: Keep progress for the next run
         if: steps.fetch.outputs.partial == 'true'
         uses: actions/cache/save@v6
@@ -77,7 +77,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run update-inat.yml --ref "${{ github.ref_name }}" -f full=${{ inputs.full && 'true' || 'false' }}
 
-      # --- Pull finished: keep the new cache, build and commit ---
+      # Pull finished: keep the new cache, build and commit
       - name: Save the iNaturalist cache
         if: steps.fetch.outputs.partial != 'true'
         uses: actions/cache/save@v6

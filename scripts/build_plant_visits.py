@@ -2,7 +2,7 @@
 Build data/plant-visits.json (the flowers butterflies were seen on) from
 data/plant-visits-clean.csv, which scripts/clean_plant_visits.py makes.
 
-The page adds these up itself, so the file keeps one  row per record:
+The page adds these up itself, so the file keeps one row per record:
 
     {
       "built": "2026-10-30", "years": [2024, 2026],

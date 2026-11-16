@@ -1,5 +1,5 @@
 """
-Build data/observations-sg.json (the Guppy & Shepard source) from the occurrence dataset
+Build data/observations-sg.json (the Guppy & Shepard source) from the occurrence dataset.
 
 Current source (switched in 2026-10-05):
     Occurrence records compiled for
@@ -12,7 +12,7 @@ Current source (switched in 2026-10-05):
 Usage (from the repo root):
     python3 scripts/build_observations.py
 
-Needs shapely(pip install shapely). Afterwards run scripts/build_species_info.py
+Needs shapely (pip install -r requirements.txt). Afterwards run scripts/build_species_info.py
 to fetch descriptions/photos for any new species.
 """
 import csv, os, sys

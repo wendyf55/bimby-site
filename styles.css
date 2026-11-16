@@ -349,6 +349,15 @@ p.sub {
   color: var(--ink);
 }
 
+.canada p {
+  margin: 0;
+}
+
+#ecoInfo {
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
 /* Which data sources to show */
 .src-pick {
   display: flex;
@@ -705,23 +714,7 @@ details.sec>summary .hint-r {
   background: #fff;
 }
 
-.chip {
-  border: 1px solid #cfcabc;
-  background: #fff;
-  border-radius: 999px;
-  padding: 7px 13px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
 .filters select.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 600;
-}
-
-.chip[aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
@@ -853,6 +846,10 @@ details.sec>summary .hint-r {
   margin: 18px 0 6px;
 }
 
+.detail h4.plants-head {
+  margin-top: 22px;
+}
+
 .facts {
   display: flex;
   flex-wrap: wrap;
@@ -877,6 +874,11 @@ details.sec>summary .hint-r {
   font-size: 11px;
   fill: var(--dim);
   font-family: inherit;
+}
+
+.chart text.now {
+  fill: var(--ink);
+  font-weight: 700;
 }
 
 .chart .bar {
@@ -1053,19 +1055,10 @@ ul.fl-bf .n {
   font-variant-numeric: tabular-nums;
 }
 
-ul.plants .bloom {
+ul.plants .seen {
   color: var(--dim);
   white-space: nowrap;
   font-size: 13px;
-}
-
-.list-select {
-  width: 100%;
-  padding: 7px 8px;
-  border: 1px solid #cfcabc;
-  border-radius: 8px;
-  background: #fff;
-  margin-bottom: 6px;
 }
 
 .note {
@@ -1083,7 +1076,9 @@ ul.plants .bloom {
 }
 
 .cite a,
-.about a {
+.about a,
+.canada a,
+.empty a {
   color: var(--link);
 }
 

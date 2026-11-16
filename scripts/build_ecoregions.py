@@ -4,10 +4,10 @@ Build the ecoregion data used by index.html.
 Inputs (downloaded manually from AAFC's National Ecological Framework for Canada,
 https://sis.agr.gc.ca/cansis/nsdb/ecostrat/gis_data.html):
     data/raw/ecoregion_shp.zip   194 ecoregions (218 polygons), NAD83 lat/long
-    data/raw/ecozone_shp.zip  15 ecozones (used for zone names only)
+    data/raw/ecozone_shp.zip     15 ecozones (used for zone names only)
 
-Outputs:
-    data/ecoregions.geojson, data/ecozones.geojson
+Output:
+    data/ecoregions.geojson   one feature per ecoregion, with its ecozone's name (zoneName)
 
 Run from the repo root:
     python3 scripts/build_ecoregions.py
@@ -24,7 +24,6 @@ from shapely.ops import unary_union
 
 RAW = "data/raw"
 OUT_GEO = "data/ecoregions.geojson"
-OUT_ZONES = "data/ecozones.geojson"
 
 SIMPLIFY_DEG = 0.02      # coverage-simplify tolerance (~2 km); shared borders stay shared
 DECIMALS = 3             # coordinate rounding in the output (~100 m)
@@ -68,28 +67,16 @@ def main():
 
     # --- Simplify outlines for the web, keeping neighbouring borders identical ---
     simple = shapely.coverage_simplify(full, SIMPLIFY_DEG)
-    features, zone_parts = [], {}
+    features = []
     for rid, geom in zip(ids, simple):
         geom = shapely.set_precision(geom, 10 ** -DECIMALS)
         if geom.is_empty:
             geom = full[ids.index(rid)].simplify(SIMPLIFY_DEG)   # tiny islands can vanish
         props = dict(info[rid], zoneName=zone_names.get(info[rid]["zoneId"], ""))
         features.append({"type": "Feature", "properties": props, "geometry": mapping(geom)})
-        zone_parts.setdefault(info[rid]["zoneId"], []).append(geom)
-
-    # --- Ecozone outlines: merge each zone's simplified ecoregions ---
-    zone_features = []
-    for zid in sorted(zone_parts):
-        geom = shapely.set_precision(unary_union(zone_parts[zid]), 10 ** -DECIMALS)
-        zone_features.append({"type": "Feature",
-                              "properties": {"id": zid, "name": zone_names.get(zid, "")},
-                              "geometry": mapping(geom)})
 
     with open(OUT_GEO, "w") as f:
         json.dump({"type": "FeatureCollection", "features": features}, f, separators=(",", ":"))
-    with open(OUT_ZONES, "w") as f:
-        json.dump({"type": "FeatureCollection", "features": zone_features}, f, separators=(",", ":"))
-    print(f"Wrote {OUT_ZONES} ({os.path.getsize(OUT_ZONES)//1024} KB)")
     print(f"Wrote {OUT_GEO} ({os.path.getsize(OUT_GEO)//1024} KB)")
     print("If the outlines changed, rebuild the sources so records are re-tagged:\n"
           "    python3 scripts/build_observations.py && python3 scripts/build_inat.py")
