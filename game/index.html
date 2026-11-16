@@ -17,8 +17,12 @@
   <div id="layout">
     <aside id="panel" aria-label="Butterflies to guess from">
       <header class="app-head">
-        <div class="app-title">Butterflies of British Columbia</div>
-        <div class="app-sub">Guessing game: where were these butterflies seen?</div>
+        <nav class="app-title crumbs" aria-label="Breadcrumb">
+          <a href="../" title="Back to the map">Butterflies of British Columbia</a>
+          <span class="crumb-sep" aria-hidden="true">›</span>
+          <span class="crumb-here" aria-current="page">Guessing game</span>
+        </nav>
+        <div class="app-sub">Where were these butterflies seen?</div>
       </header>
       <div id="content"><p class="sub">Loading butterfly records…</p></div>
       <div id="announce" class="sr-only" aria-live="polite"></div>

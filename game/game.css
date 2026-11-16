@@ -2,6 +2,25 @@
  * Guessing game (game/index.html). Builds on ../styles.css (colours, header, buttons, layout).
  */
 
+/* navigation in the header: "Butterflies of British Columbia › Guessing game".
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+}
+
+.crumb-sep {
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+.crumb-here {
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
 /* Butterflies to guess from: photo cards */
 .g-list {
   list-style: none;

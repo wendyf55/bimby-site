@@ -188,6 +188,27 @@ body.resizing #map {
   margin-top: 2px;
 }
 
+/* Link to the guessing game (game/), under the subtitle */
+.app-game {
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.app-game a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
+.app-game a:hover {
+  color: var(--accent);
+}
+
+.app-game a:focus-visible {
+  outline: 2px solid #f4f6f0;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
 #content {
   flex: 1;
   overflow-y: auto;
