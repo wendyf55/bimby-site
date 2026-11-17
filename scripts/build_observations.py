@@ -1,16 +1,19 @@
 """
 Build data/observations-sg.json (the Guppy & Shepard source) from the occurrence dataset.
 
-Current source (switched in 2026-10-05):
+Current source (switched 2026-11-16 to the version with a Dataset column):
     Occurrence records compiled for
     Guppy, C., & Shepard, J. (2001). Butterflies of British Columbia: Including
     Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern
     Oregon, Northern Idaho, and Northwestern Montana. UBC Press.
-    File: data/occurrence_data_subset.csv (exported from Occurrence_data-subset.numbers)
-    Columns: (row number), Species_binomial, Latitude, Longitude, Date (YYYY-MM-DD)
+    File: data/occurrence_data_subset.csv (exported from Occurrence_data-subsetWendy.numbers)
+    Columns: (row number), Species_binomial, Latitude, Longitude, Date (YYYY-MM-DD), Dataset
+    Dataset is "Guppy", "Shepard" or "GBIF". Only Guppy and Shepard rows are used
+    (KEEP_DATASETS); the GBIF rows are left out.
 
 Usage (from the repo root):
     python3 scripts/build_observations.py
+    python3 scripts/build_observations.py --from-numbers Occurrence_data-subsetWendy.numbers
 
 Needs shapely (pip install -r requirements.txt). Afterwards run scripts/build_species_info.py
 to fetch descriptions/photos for any new species.
@@ -22,6 +25,7 @@ import source_files
 
 SRC = "data/occurrence_data_subset.csv"
 OUT = "data/observations-sg.json"
+KEEP_DATASETS = {"Guppy", "Shepard"}   # values of the Dataset column to use
 
 # The dataset has scientific names only, so its common names live here (edit freely).
 # A species not listed falls back to data/species-info.json; the build prints any with no name.
@@ -99,9 +103,13 @@ def main():
         export_numbers(sys.argv[sys.argv.index("--from-numbers") + 1])
 
     names = known_common_names()
-    rows, skipped, no_name = [], 0, set()
+    rows, skipped, left_out, no_name = [], 0, {}, set()
     with open(SRC, newline="", encoding="utf-8") as f:
         for i, r in enumerate(csv.DictReader(f), start=1):
+            dataset = (r.get("Dataset") or "").strip()
+            if dataset not in KEEP_DATASETS:   # e.g. GBIF
+                left_out[dataset] = left_out.get(dataset, 0) + 1
+                continue
             sci = (r.get("Species_binomial") or "").strip()
             lat = (r.get("Latitude") or "").strip()
             lng = (r.get("Longitude") or "").strip()
@@ -120,6 +128,8 @@ def main():
                 "date": (r.get("Date") or "").strip()[:10],
             })
     source_files.write_source(OUT, "sg", "Guppy & Shepard", rows)
+    for dataset, n in sorted(left_out.items()):
+        print(f"Left out {n} rows from dataset {dataset or '(blank)'}")
     print(f"Skipped {skipped} rows missing a name or coordinates")
     if no_name:
         print("No common name for:", ", ".join(sorted(no_name)))

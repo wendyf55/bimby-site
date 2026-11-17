@@ -15,19 +15,12 @@ over the years, and which plants each butterfly uses. A small guessing game uses
 
 - Get pictures and descriptions from G + S. Right now 6 butterflies have no
   description and 2 have no photo; see [Species descriptions & photos](#species-descriptions--photos).
-- Replace the Guppy & Shepard occurrence CSV with the final version, which will have a
-  source column. Then update the citation in the "About this data" text (`app.js`)
-  and in `scripts/build_observations.py`, because not every record comes from Guppy &
-  Shepard (2001).
 - Move the repository to the project's own GitHub account. GitHub Pages and the
   iNaturalist workflow need to be switched on again there (see [Deployment](#deployment)).
 - Buy a domain and point it at GitHub Pages.
-- Some butterflies are probably counted twice when both sources are shown:
-  - About 68,000 Guppy & Shepard records also appear in iNaturalist (same species and
-    date, within 2 km).
-  - A few butterflies go by different names in the two sources (e.g. *Plebejus
-    scudderii* vs *P. idas / anna / melissa*). Create a list of name-mismatches for review.
-  - Any merge needs a source for each name.
+- A few butterflies go by different names in the two sources (e.g. *Plebejus
+  scudderii* vs *P. idas / anna / melissa*), so they may show up twice when both sources
+  are shown. Create a list of name-mismatches for review; any merge needs a source for each name.
 - Check the licence for the ecoregion dataset.
 
 ## Running locally
@@ -144,17 +137,18 @@ Commit the regenerated `data/*.json` files afterwards; the site serves whatever 
 - **Citation:** Guppy, C., & Shepard, J. (2001). *Butterflies of British Columbia:
   Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington,
   Northern Oregon, Northern Idaho, and Northwestern Montana.* UBC Press.
-- **File:** `data/occurrence_data_subset.csv`, exported from `Occurrence_data-subset.numbers`
-  (added 2026-10-05). It has 104,279 records of 50 species from 1950 to 2025, all in BC,
-  each with coordinates and a date.
-- **Note:** despite the citation, not every record comes from Guppy & Shepard; most are
-  after 2001. A final version will be implemented soon (see TODO).
-- **Fields used:** `Species_binomial`, `Latitude`, `Longitude`, `Date`. The record id is the
-  row number.
+- **File:** `data/occurrence_data_subset.csv`, exported from `Occurrence_data-subsetWendy.numbers`
+  (added 2026-11-16). It has 104,279 records of 50 species from 1950 to 2025, all in BC,
+  each with coordinates, a date and a `Dataset` column: Guppy (6,496), Shepard (7,530)
+  or GBIF (90,253).
+- **Only the Guppy and Shepard rows are used** (14,026 records, all 50 species, 1950–2025).
+  The GBIF rows are left out (`KEEP_DATASETS` in `build_observations.py`).
+- **Fields used:** `Species_binomial`, `Latitude`, `Longitude`, `Date`, `Dataset`. The record
+  id is the row number.
 - **Common names:** the data has none, so `build_observations.py` keeps them in its
   `COMMON_NAMES` table.
 - **Build:** `python3 scripts/build_observations.py` writes `data/observations-sg.json`
-  and tags each record's ecoregion. Add `--from-numbers Occurrence_data-subset.numbers`
+  and tags each record's ecoregion. Add `--from-numbers Occurrence_data-subsetWendy.numbers`
   to re-export the CSV from the Numbers file first (needs `numbers-parser`).
 
 ### Butterfly occurrences: iNaturalist

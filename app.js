@@ -776,7 +776,7 @@ function resultsHTML() {
   html += `
     <details class="about">
       <summary>About this data</summary>
-      <p>Butterfly records (${srcMeta.sg?.years ? srcMeta.sg.years.join('&ndash;') + ', ' : ''}British Columbia) come from the occurrence data compiled for
+      <p>Guppy &amp; Shepard records (${srcMeta.sg?.years ? srcMeta.sg.years.join('&ndash;') + ', ' : ''}British Columbia) come from the occurrence data compiled for
         Guppy, C., &amp; Shepard, J. (2001). <i>Butterflies of British Columbia: Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern Oregon, Northern Idaho, and Northwestern Montana</i>. UBC Press.</p>
       ${loaded.includes('inat') ? `<p>iNaturalist records are research-grade butterfly observations in British Columbia
         (identifications agreed by the community), refreshed twice a week${srcMeta.inat.asOf ? `; last updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}` : ''}.
