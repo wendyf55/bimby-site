@@ -30,7 +30,7 @@
     .spi-card { margin: 10px 0 14px; }
     .spi-card::after { content: ""; display: block; clear: both; }
     .spi-fig { margin: 0 0 10px; }
-    .spi-fig img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 10px;
+    .spi-fig img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px;
                    background: rgba(128,128,128,0.18); }
     .spi-card.side .spi-fig { float: left; width: 200px; margin: 2px 16px 8px 0; }
     .spi-cap { font-size: 11px; opacity: 0.65; line-height: 1.35; margin-top: 4px; }
@@ -42,6 +42,8 @@
     .spi-src { font-size: 11px; opacity: 0.65; margin: 6px 0 0; }
     .spi-card a, .spi-cap a { color: inherit; text-decoration: underline; text-decoration-color: rgba(128,128,128,0.6); }
   `;
+  // iNaturalist sends photo credits already HTML-escaped ("Libby &amp; Rick Avis"): decode before escaping again
+  const unesc = s => { const t = document.createElement('textarea'); t.innerHTML = s || ''; return t.value; };
   const style = document.createElement('style');
   style.textContent = css;
   document.head.appendChild(style);
@@ -72,7 +74,7 @@
     const p = get(sci)?.photo;
     const cls = 'spi-thumb' + (opts.small ? ' sm' : '');
     return p
-      ? `<img class="${cls}" src="${esc(p.square || p.url)}" alt="" loading="lazy" title="${esc(p.attribution || '')}">`
+      ? `<img class="${cls}" src="${esc(p.square || p.url)}" alt="" loading="lazy" title="${esc(unesc(p.attribution))}">`
       : `<span class="${cls}" aria-hidden="true"></span>`;
   }
 
@@ -82,7 +84,7 @@
     const name = e.commonName ? `${e.commonName} (${sci})` : sci;
     let html = `<div class="spi-card ${opts.layout === 'side' ? 'side' : ''}">`;
     if (e.photo) {
-      const credit = esc(e.photo.attribution || '');
+      const credit = esc(unesc(e.photo.attribution));
       html += `<figure class="spi-fig">
           <a href="${esc(e.photo.page || e.photo.url)}" target="_blank" rel="noopener"><img src="${esc(e.photo.url)}" alt="${esc(name)}" loading="lazy"></a>
           <figcaption class="spi-cap">Photo: ${credit}${e.photo.source ? ` · via <a href="${esc(e.photo.page || e.photo.url)}" target="_blank" rel="noopener">${esc(e.photo.source)}</a>` : ''}</figcaption>
@@ -92,8 +94,10 @@
       const long = e.wikipedia.extract.length > 420;
       html += `<p class="spi-desc ${long ? 'clamp' : ''}">${esc(e.wikipedia.extract)}</p>`;
       if (long) html += `<button class="spi-more" type="button">Show more</button>`;
-      if (!e.wikipedia.custom) {
-        html += `<p class="spi-src">From <a href="${esc(e.wikipedia.url)}" target="_blank" rel="noopener">Wikipedia</a>
+      // A custom text with a Wikipedia link is an edited Wikipedia paragraph: still credited, as "Adapted from"
+      const fromWiki = /wikipedia\.org/.test(e.wikipedia.url || '');
+      if (!e.wikipedia.custom || fromWiki) {
+        html += `<p class="spi-src">${e.wikipedia.custom ? 'Adapted from' : 'From'} <a href="${esc(e.wikipedia.url)}" target="_blank" rel="noopener">Wikipedia</a>
           (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a>)</p>`;
       }
     }

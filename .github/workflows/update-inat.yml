@@ -96,12 +96,18 @@ jobs:
         continue-on-error: true
         run: python scripts/build_species_info.py
 
+      - name: Latest sightings with photos for the home page
+        # A small separate request so an issue here shouldn't block the data update
+        if: steps.fetch.outputs.partial != 'true'
+        continue-on-error: true
+        run: python scripts/fetch_inat_recent.py
+
       - name: Commit if changed
         if: steps.fetch.outputs.partial != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/inat/state.json data/observations-inat.json data/species-info.json
+          git add data/inat/state.json data/observations-inat.json data/species-info.json data/inat-recent.json
           if git diff --cached --quiet; then
             echo "No changes."
             exit 0

@@ -10,7 +10,10 @@ Steps:
   2. Fix plant name typos and turn "Salix spp" and similar into the genus ("Salix").
   3. Pick one common name per plant: the one used most often in the list, unless
      scripts/deedes_name_map.json gives a better one.
-  4. Butterflies whose only entry is "unknown" are kept with an empty plant, so the
+  4. Add each plant's status in BC from VASCAN (scripts/vascan.py; needs
+     data/raw/vascan-dwca.zip): the full name first ("Urtica dioica subsp. gracilis"),
+     then the species. Genus entries get no status.
+  5. Butterflies whose only entry is "unknown" are kept with an empty plant, so the
      page can say no host plants are known yet.
 The list's "Place", "AlternatePlantName" and "PlantCategory" columns are not used.
 
@@ -25,12 +28,13 @@ from collections import Counter
 import openpyxl
 
 from clean_plant_visits import load_butterfly_names
+from vascan import Vascan
 
 SRC = "data/hosts-Deedes.xlsx"
 OUT = "data/hosts-deedes-clean.csv"
 NAME_MAP = "scripts/deedes_name_map.json"
 
-COLUMNS = ["butterfly", "butterfly_common", "plant", "plant_common", "list_butterfly", "list_plant"]
+COLUMNS = ["butterfly", "butterfly_common", "plant", "plant_common", "bc_status", "list_butterfly", "list_plant"]
 
 
 def tidy(value):
@@ -84,6 +88,9 @@ def main():
             commons.setdefault(sci, Counter())[clean_common(row["PlantEnglishName"])] += 1
     plant_common = {sci: common_fixes.get(sci, c.most_common(1)[0][0]) for sci, c in commons.items()}
     plant_common["weedy pioneer"] = common_fixes[""]
+    vascan = Vascan()
+    status = {sci: vascan.bc_status(sci) or vascan.bc_status(species_part(sci))
+              for sci in plant_common if species_part(sci)}
 
     out, not_on_site, skipped = {}, Counter(), Counter()
     for row in rows:
@@ -104,6 +111,7 @@ def main():
                 "butterfly_common": site_common.get(butterfly) or row["ButterflyEnglishName"],
                 "plant": "" if plant == "weedy pioneer" else plant,
                 "plant_common": plant_common.get(plant, ""),
+                "bc_status": status.get(plant, ""),
                 "list_butterfly": listed,
                 "list_plant": row["PlantLatinName"],
             }
@@ -124,6 +132,8 @@ def main():
     print(f"\nRead {len(rows)} rows, wrote {len(rows_out)} to {OUT}")
     print(f"{len(with_plants)} butterflies with host plants, {len(unknown)} with none known, "
           f"{len(plants)} plants ({sum(1 for p in plants if not species_part(p))} genus or group entries)")
+    counts = Counter(status.get(p, "") or "no status" for p in plants if species_part(p))
+    print("Plant species by status in BC:", ", ".join(f"{v} {k}" for k, v in sorted(counts.items())))
     unconfirmed = names.get("unconfirmed", {})
     if skipped:
         print("Left out, no confirmed match yet:", ", ".join(n for n in skipped if n in unconfirmed))

@@ -1,0 +1,99 @@
+{
+  "_note": "Manual fixes for data/species-info.json (see scripts/build_species_info.py). Photos below: BC iNaturalist observations chosen 2026-11-21 to replace caterpillar, specimen, hard-to-see or non-BC photos.",
+  "Euphydryas editha": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/516231722/medium.jpg",
+    "photoAttribution": "(c) Jeremy Gatten, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/287118058"
+  },
+  "Phyciodes mylitta": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/98346982/medium.jpg",
+    "photoAttribution": "no rights reserved",
+    "photoLicense": "cc0",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/61456481"
+  },
+  "Argynnis hesperis": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/312107858/medium.jpeg",
+    "photoAttribution": "(c) David Clements, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/179286475"
+  },
+  "Pieris angelika": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/405708558/medium.jpeg",
+    "photoAttribution": "(c) Bruce Bennett, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/228616851"
+  },
+  "Satyrium behrii": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/78730309/medium.jpeg",
+    "photoAttribution": "(c) Lena Dietz Chiasson, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/49595044"
+  },
+  "Pontia occidentalis": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/254390006/medium.jpg",
+    "photoAttribution": "(c) Liz Osborn, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/147800003"
+  },
+  "Hesperia assiniboia": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/54406706/medium.jpg",
+    "photoAttribution": "(c) Liz Osborn, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/34561858"
+  },
+  "Euchloe creusa": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/530049147/medium.jpg",
+    "photoAttribution": "(c) Steve Ansell, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/294479035"
+  },
+  "Boloria bellona": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/244016950/medium.jpg",
+    "photoAttribution": "(c) Alan Burger, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/142343522"
+  },
+  "Pyrgus centaureae": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/266341676/medium.jpg",
+    "photoAttribution": "(c) Libby &amp; Rick Avis, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/154174895"
+  },
+  "Carterocephalus mandan-skada": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/70040254/medium.jpeg",
+    "photoAttribution": "(c) James Miskelly, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/44177020"
+  },
+  "Celastrina echo-asheri": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/157017323/medium.jpg",
+    "photoAttribution": "(c) John D Reynolds, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/94644834"
+  },
+  "Cupido amyntula-comyntas": {
+    "photoUrl": "https://inaturalist-open-data.s3.amazonaws.com/photos/54682261/medium.jpg",
+    "photoAttribution": "(c) Liz Osborn, some rights reserved (CC BY-NC)",
+    "photoLicense": "cc-by-nc",
+    "photoSource": "iNaturalist",
+    "photoPage": "https://www.inaturalist.org/observations/34722916"
+  },
+  "Aglais milberti": {
+    "description": "Aglais milberti, the fire-rim tortoiseshell or Milbert's tortoiseshell, is considered the only species of the proposed Aglais genus that occurs in North America. It is one of two tortoiseshell butterflies in North America. The other species is the California tortoiseshell (Nymphalis californica).",
+    "descriptionUrl": "https://en.wikipedia.org/wiki/Aglais_milberti",
+    "_why": "Wikipedia text says \"nymphata californica\"; corrected to Nymphalis californica (rest unchanged)."
+  }
+}

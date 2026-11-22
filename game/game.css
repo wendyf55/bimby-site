@@ -42,7 +42,7 @@
 .g-card .g-nophoto {
   display: block;
   width: 100%;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 4 / 3;   /* same frame as the butterfly cards on the map page */
   object-fit: cover;
   background: var(--soft);
 }

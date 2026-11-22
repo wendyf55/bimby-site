@@ -127,6 +127,43 @@ hint.addTo(map);
 const banner = L.control({ position: 'topright' });
 banner.onAdd = () => { const d = L.DomUtil.create('div', 'map-banner'); L.DomEvent.disableClickPropagation(d); return d; };
 
+// ===== Records as small dots =====
+// Start screen: every record. Once a spot or area is chosen: only the records counted in the panel
+// (inside the circle, drawn area or ecoregion, same year and source filters).
+// Drawn tile by tile on canvas so ~150k points stay fast. Not clickable: clicks go through to the map.
+// Hidden while a single butterfly's dots are shown.
+map.createPane('allDots').style.zIndex = 350;
+map.getPane('allDots').style.pointerEvents = 'none';
+const AllDots = L.GridLayer.extend({
+  createTile(coords) {
+    const tile = document.createElement('canvas'), size = this.getTileSize();
+    tile.width = size.x; tile.height = size.y;
+    const ctx = tile.getContext('2d'), z = coords.z, r = z < 7 ? 1.5 : z < 9 ? 2 : 3;
+    const nw = coords.scaleBy(size), pad = r + 1;
+    const b = L.latLngBounds(map.unproject(nw.subtract([pad, pad]), z), map.unproject(nw.add(size).add([pad, pad]), z));
+    for (const key of ['sg', 'inat']) {               // iNat drawn last (on top)
+      ctx.fillStyle = key === 'inat' ? '#3f7cac' : '#e79a3c';
+      ctx.beginPath();
+      for (const o of this.options.points) {
+        if (o.source !== key || o.lat < b.getSouth() || o.lat > b.getNorth() || o.lng < b.getWest() || o.lng > b.getEast()) continue;
+        const p = map.project([o.lat, o.lng], z).subtract(nw);
+        ctx.moveTo(p.x + r, p.y); ctx.arc(p.x, p.y, r, 0, 2 * Math.PI);
+      }
+      ctx.globalAlpha = 0.7; ctx.fill();
+    }
+    return tile;
+  },
+});
+let allDotsLayer = null, allDotsPts = null;
+function drawAllDots() {
+  const pts = state.mapped || !observations.length ? null : state.point ? scopeObservations().obs : observations;
+  if (pts === allDotsPts) return;                    // same records as last time: nothing to redraw
+  allDotsLayer?.remove(); allDotsLayer = null; allDotsPts = pts;
+  if (pts) {
+    allDotsLayer = new AllDots({ pane: 'allDots', points: pts, updateWhenZooming: false }).addTo(map);
+  }
+}
+
 map.on('click', e => {
   const t = e.originalEvent?.target;
   if (t && (!t.isConnected || t.closest('.leaflet-control'))) return;   // a click on a map button, not the map
@@ -153,7 +190,9 @@ Promise.all([
     .catch(err => { console.warn('Flower data not loaded', err); return null; }),
   fetch('data/host-plants.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .catch(err => { console.warn('Host plant data not loaded', err); return null; }),
-]).then(([sources, geo, , visits, hostData]) => {
+  fetch('data/inat-recent.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .catch(err => { console.warn('Recent sightings not loaded', err); return null; }),
+]).then(([sources, geo, , visits, hostData, recentData]) => {
   for (const s of sources.filter(Boolean)) {
     const { src, d } = s, f = Object.fromEntries(d.fields.map((k, i) => [k, i]));
     srcMeta[src.key] = { asOf: d.asOf || d.built, count: d.rows.length, years: yearRange(d.rows.map(r => r[f.date])) };
@@ -170,6 +209,7 @@ Promise.all([
   if (!allObs.length) throw new Error('no observation data');
   if (visits) flowers = buildFlowers(visits);
   if (hostData) hosts = buildHosts(hostData);
+  recent = recentData?.observations?.length ? recentData.observations : null;
   regions = geo.features.map(f => ({ f, bbox: bboxOf(f.geometry) }));
   applySources();
   if (!restoreFromHash()) render();
@@ -203,7 +243,7 @@ function sourceHTML() {
   return `<div class="src-pick"><span>Data:</span>
     <div class="seg" role="group" aria-label="Data source">${btn('all', 'Both')}${loaded.map(k => btn(k, esc(srcInfo(k).label))).join('')}</div>
     ${loaded.includes('inat') && (!state.sources || state.sources.includes('inat')) && srcMeta.inat.asOf
-      ? `<small>Warning - Duplicate Records Present - iNaturalist updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}</small>` : ''}</div>`;
+      ? `<small> Some sightings may appear in both sources - iNaturalist updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}</small>` : ''}</div>`;
 }
 // ===== Where a record counts: near you and ecoregions =====
 // Obscured iNat locations are blurred by ~20 km, so they don't belong in small "near you" circles.
@@ -677,6 +717,7 @@ function render() {
   }
   announce();
   renderTrends();
+  drawAllDots();
 }
 
 // Only the butterfly list, so typing in its search box doesn't rebuild the whole panel
@@ -701,8 +742,8 @@ function announce() {
 function startHTML() {
   const total = observations.length, sp = new Set(observations.map(o => o.scientificName)).size;
   return `
-    <h2 class="lead">Where is your backyard?</h2>
-    <p class="sub">Find out which butterflies have been seen near you, when they fly, and which they are associated with.</p>
+    <h2 class="lead">Explore butterfly records across British Columbia</h2>
+    <p class="sub">Find out which butterflies have been seen near you, when they fly, and which plants they are associated with.</p>
     <form class="search" id="placeForm" role="search">
       <label class="sr-only" for="placeInput">Town, city or postal code</label>
       <input id="placeInput" type="search" placeholder="Town, city or postal code" autocomplete="off" value="${esc(state.placeQ)}">
@@ -718,12 +759,83 @@ function startHTML() {
     <p class="hint">${draw ? 'Click the map to add corners. Click the first corner (or double-click) to finish.' : 'You can also click anywhere on the map.'}</p>
     ${total ? `<div class="canada">${sourceHTML()}<p>The map holds <b>${fmt(total)}</b> records of <b>${sp}</b> butterfly species from British Columbia
       (${activeSources().map(k => k === 'sg' ? 'Guppy &amp; Shepard, 2001' : 'iNaturalist observers').join(' and ')}).
+      Each dot on the map is one record:
+      ${activeSources().map(k => `<span class="dot-key"><span class="dot ${k}"></span>${srcInfo(k).label}</span>`).join(' ')}.
       Seen a butterfly? <a href="${INAT_PROJECT}" target="_blank" rel="noopener">Join the BIMBY project on iNaturalist</a>.</p>
-      ${flowersButton()}</div>` : ''}`;
+      ${flowersButton()}${recentHTML()}</div>` : ''}
+    ${total ? aboutHTML() : ''}`;
+}
+
+// ===== Latest sightings on iNaturalist (home page) =====
+// data/inat-recent.json, built by scripts/fetch_inat_recent.py: the 5 newest research-grade sightings
+// in BC with a reusable photo. Each photo carries iNaturalist's own credit line.
+let recent = null;
+// iNaturalist credits can arrive HTML-escaped ("Libby &amp; Rick Avis"): decode before escaping again
+const unescapeCredit = s => { const t = document.createElement('textarea'); t.innerHTML = s || ''; return t.value; };
+function recentHTML() {
+  if (!recent) return '';
+  return `<section class="recent" aria-labelledby="recentTitle">
+    <h3 id="recentTitle">Latest sightings on iNaturalist</h3>
+    <ul>${recent.map(o => {
+    const name = o.common || o.sci;
+    return `<li><a href="https://www.inaturalist.org/observations/${encodeURIComponent(o.id)}" target="_blank" rel="noopener">
+        <img src="${esc(o.photo)}" alt="${esc(name)}" loading="lazy" width="72" height="72">
+        <span class="recent-text"><span><b>${esc(name)}</b>${o.common ? ` <i>${esc(o.sci)}</i>` : ''}</span>
+          <span class="recent-date">Seen ${fmtDate(o.date)}</span>
+          <small>Photo ${esc(unescapeCredit(o.credit))}</small></span></a></li>`;
+  }).join('')}</ul>
+  </section>`;
 }
 
 const flowersButton = () => flowers || hosts ? `<div class="fl-open"><button class="trend-btn" type="button" data-flowers
   aria-expanded="${state.flowers}" aria-controls="flowers">Plants butterflies use in BC</button></div>` : '';
+
+// Sources and citations, at the bottom of both the start screen and the results
+function aboutHTML() {
+  return `
+    <details class="about">
+      <summary>About this data</summary>
+      <p>Guppy &amp; Shepard records (${srcMeta.sg?.years ? srcMeta.sg.years.join('&ndash;') + ', ' : ''}British Columbia) come from the occurrence data compiled for
+        Guppy, C., &amp; Shepard, J. (2001). <i>Butterflies of British Columbia: Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern Oregon, Northern Idaho, and Northwestern Montana</i>. UBC Press.</p>
+      ${loaded.includes('inat') ? `<p>iNaturalist records are research-grade butterfly observations in British Columbia
+        (identifications agreed by the community), refreshed twice a week${srcMeta.inat.asOf ? `; last updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}` : ''}.
+        Observations are &copy; their observers, used under the licence each observer chose
+        (<a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener">CC0</a>,
+        <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY</a> or
+        <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC</a>;
+        records under other licences are not shown); When mapping one butterfly, click on any iNaturalist occurrence dots to go to the iNaturalist observation.
+        Subspecies are counted under their species, and a few split species are
+        grouped to match Guppy &amp; Shepard (e.g. iNaturalist's two Arctic Skippers count as one). Where an observer hid their exact location
+        (blurred by about 20 km), the sighting counts towards your ecoregion and the ${NEAR_MIN_KM_OBSCURED} km and ${RADII[RADII.length - 1]} km circles
+        (or drawn areas of at least ${fmt(Math.round(Math.PI * NEAR_MIN_KM_OBSCURED ** 2 / 10) * 10)} km²) only.</p>` : ''}
+      <p>Descriptions come from Wikipedia (CC BY-SA 4.0), and photos from iNaturalist and Wikimedia Commons photographers
+        (credited on each butterfly).</p>
+      ${recent ? `<p>Latest sightings on the home page are the newest research-grade iNaturalist observations in British Columbia
+        whose observation and photo are both licensed CC0, CC BY or CC BY-NC, updated with the iNaturalist data. Each photo is
+        &copy; its photographer and credited under it.</p>` : ''}
+      ${flowers ? `<p>Flower records (${flowerYears()}) are research-grade iNaturalist observations of butterflies feeding at flowers in
+        British Columbia, where the flower was also identified to species and research grade, used under the observer's
+        licence (CC0, CC BY or CC BY-NC). They are counted for all of BC together. Flower common names come from iNaturalist.</p>` : ''}
+      ${hosts ? `<p>Host plants come from <a href="${HOST_LIST_URL}" target="_blank" rel="noopener">B.C. Host Plants</a>
+        by Stephen Deedes and Sally Hocking (The Butterflyway Lane; accessed ${fmtDate(hosts.accessed)}). Their list draws on
+        Acorn, J. &amp; Sheldon, I. (2006) <i>Butterflies of British Columbia</i>; Guppy, C. &amp; Shepard, J. (2001)
+        <i>Butterflies of British Columbia</i>; Pojar, J. &amp; MacKinnon, A. (1994) <i>Plants of Coastal British Columbia</i>;
+        the Xerces Society (2016) <i>Gardening for Butterflies</i>; Beard, R. <i>Garden Butterflies of the Georgia Basin</i>;
+        Campbell, <i>Common Butterflies, Georgia Basin</i>; and E-Fauna BC. Older butterfly names in the list were matched to the
+        names used here with iNaturalist and BugGuide; a few that could not be matched yet are left out.</p>` : ''}
+      ${flowers || hosts ? `<p>Native plant status: Brouillet, L., Desmet, P., Coursol, F., Meades, S.J., Favreau, M., Anions, M.,
+        Bélisle, P., Gendreau, C., Shorthouse, D. and contributors (2010+). <i>Database of Vascular Plants of Canada (VASCAN)</i>.
+        Version ${VASCAN_VERSION}. <a href="https://doi.org/10.5886/zw3aqw" target="_blank" rel="noopener">doi:10.5886/zw3aqw</a>.
+        Accessed ${fmtDate(VASCAN_ACCESSED)}.</p>` : ''}
+      <p>Ecoregions: Ecological Stratification Working Group (1995). <i>A National Ecological Framework for Canada</i>.
+        Agriculture and Agri-Food Canada and Environment Canada.
+        <a href="https://sis.agr.gc.ca/cansis/nsdb/ecostrat/" target="_blank" rel="noopener">sis.agr.gc.ca/cansis/nsdb/ecostrat</a>.
+        Contains information licensed under the
+        <a href="https://open.canada.ca/en/open-government-licence-canada" target="_blank" rel="noopener">Open Government Licence – Canada</a>.</p>
+      <p>Postal code areas: Adapted from Statistics Canada, Census Forward Sortation Area Boundary File, 2021 Census (92-179-X).
+        This does not constitute an endorsement by Statistics Canada of this product.</p>
+    </details>`;
+}
 
 function resultsHTML() {
   const near = statsFor('near'), reg = state.region ? statsFor('region') : null;
@@ -773,42 +885,7 @@ function resultsHTML() {
     </div>
     <div id="list">${listHTML()}</div>`;
 
-  html += `
-    <details class="about">
-      <summary>About this data</summary>
-      <p>Guppy &amp; Shepard records (${srcMeta.sg?.years ? srcMeta.sg.years.join('&ndash;') + ', ' : ''}British Columbia) come from the occurrence data compiled for
-        Guppy, C., &amp; Shepard, J. (2001). <i>Butterflies of British Columbia: Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern Oregon, Northern Idaho, and Northwestern Montana</i>. UBC Press.</p>
-      ${loaded.includes('inat') ? `<p>iNaturalist records are research-grade butterfly observations in British Columbia
-        (identifications agreed by the community), refreshed twice a week${srcMeta.inat.asOf ? `; last updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}` : ''}.
-        Observations are &copy; their observers, used under the licence each observer chose
-        (<a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener">CC0</a>,
-        <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY</a> or
-        <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC</a>;
-        records under other licences are not shown); each map dot links to its observation, with the observer's name and licence.
-        Subspecies are counted under their species, and a few split species are
-        grouped to match Guppy &amp; Shepard (e.g. iNaturalist's two Arctic Skippers count as one). Where an observer hid their exact location
-        (blurred by about 20 km), the sighting counts towards your ecoregion and the ${NEAR_MIN_KM_OBSCURED} km and ${RADII[RADII.length - 1]} km circles
-        (or drawn areas of at least ${fmt(Math.round(Math.PI * NEAR_MIN_KM_OBSCURED ** 2 / 10) * 10)} km²) only.</p>` : ''}
-      <p>Descriptions come from Wikipedia (CC BY-SA 4.0), and photos from iNaturalist and Wikimedia Commons photographers
-        (credited on each butterfly).</p>
-      ${flowers ? `<p>Flower records (${flowerYears()}) are research-grade iNaturalist observations of butterflies feeding at flowers in
-        British Columbia, where the flower was also identified to species and research grade, used under the observer's
-        licence (CC0, CC BY or CC BY-NC). They are counted for all of BC together. Flower common names come from iNaturalist.</p>` : ''}
-      ${hosts ? `<p>Host plants come from <a href="${HOST_LIST_URL}" target="_blank" rel="noopener">B.C. Host Plants</a>
-        by Stephen Deedes and Sally Hocking (The Butterflyway Lane; accessed ${fmtDate(hosts.accessed)}). Their list draws on
-        Acorn, J. &amp; Sheldon, I. (2006) <i>Butterflies of British Columbia</i>; Guppy, C. &amp; Shepard, J. (2001)
-        <i>Butterflies of British Columbia</i>; Pojar, J. &amp; MacKinnon, A. (1994) <i>Plants of Coastal British Columbia</i>;
-        the Xerces Society (2016) <i>Gardening for Butterflies</i>; Beard, R. <i>Garden Butterflies of the Georgia Basin</i>;
-        Campbell, <i>Common Butterflies, Georgia Basin</i>; and E-Fauna BC. Older butterfly names in the list were matched to the
-        names used here with iNaturalist and BugGuide; a few that could not be matched yet are left out.</p>` : ''}
-      <p>Ecoregions: Ecological Stratification Working Group (1995). <i>A National Ecological Framework for Canada</i>.
-        Agriculture and Agri-Food Canada and Environment Canada.
-        <a href="https://sis.agr.gc.ca/cansis/nsdb/ecostrat/" target="_blank" rel="noopener">sis.agr.gc.ca/cansis/nsdb/ecostrat</a>.
-        Contains information licensed under the
-        <a href="https://open.canada.ca/en/open-government-licence-canada" target="_blank" rel="noopener">Open Government Licence – Canada</a>.</p>
-      <p>Postal code areas: Adapted from Statistics Canada, Census Forward Sortation Area Boundary File, 2021 Census (92-179-X).
-        This does not constitute an endorsement by Statistics Canada of this product.</p>
-    </details>`;
+  html += aboutHTML();
   return html;
 }
 
@@ -893,10 +970,22 @@ let flowers = null;
 const FLOWERS_FIRST = 8;          // flowers shown in a butterfly's detail before "Show all"
 const FLOWERS_DRAWER_FIRST = 25;  // flowers shown in the drawer before "Show all"
 const plantName = p => p.common || p.sci;
+// Native status in BC from VASCAN (scripts/vascan.py): update both when you use a newer archive
+const VASCAN_VERSION = '37.17', VASCAN_ACCESSED = '2026-11-03';
+const NATIVE_STATUS = ['native', 'extirpated'];
+// Only what VASCAN says is introduced gets "Not native". 'absent', 'excluded', 'doubtful'
+// and 'mixed' get no tag: they often mean VASCAN uses a different name for the plant.
+const NOT_NATIVE_STATUS = ['introduced', 'ephemeral'];
+function nativeTag(status) {
+  if (NATIVE_STATUS.includes(status)) return '<span class="tag native" title="Native to British Columbia (VASCAN)">Native</span>';
+  if (NOT_NATIVE_STATUS.includes(status)) return '<span class="tag intro" title="Introduced to British Columbia (VASCAN)">Not native</span>';
+  return '';
+}
+const VASCAN_CREDIT = 'Native status: <a href="https://data.canadensys.net/vascan" target="_blank" rel="noopener">VASCAN</a>, the Database of Vascular Plants of Canada.';
 
 function buildFlowers(d) {
-  const plants = d.plants.map(([sci, common, family]) =>
-    ({ sci, common, family, n: 0, people: new Set(), butterflies: new Map() }));
+  const plants = d.plants.map(([sci, common, family, status]) =>
+    ({ sci, common, family, status, n: 0, people: new Set(), butterflies: new Map() }));
   const byButterfly = {};   // butterfly sci -> Map(plant index -> { plant, n, people })
   for (const [b, p, , person] of d.rows) {
     const plant = plants[p];
@@ -928,7 +1017,7 @@ function flowersForHTML(s) {
     <h5 class="plants-sub">Flowers it has been seen feeding at</h5>
     <p class="chart-sub">All of British Columbia, ${flowerYears()} · ${plural(total, 'record')} on ${plural(list.length, 'kind')} of flower</p>
     <ul class="plants flowers">${shown.map(x => `
-      <li><span class="fl-name">${esc(plantName(x.plant))} <i>${esc(x.plant.sci)}</i></span>
+      <li><span class="fl-name">${esc(plantName(x.plant))} ${nativeTag(x.plant.status)}<i>${esc(x.plant.sci)}</i></span>
         <span class="seen">${seenText(x.n, x.people.size)}</span></li>`).join('')}
     </ul>
     ${list.length > FLOWERS_FIRST ? `<button class="link-btn more-btn" type="button" id="flowersAll">${state.flowersAll ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
@@ -957,27 +1046,28 @@ function flowersDrawerHTML() {
       </div>
     </div>
     <ol class="fl-list">${shown.map((p, i) => {
-        const open = o.open === p.sci;
-        const bf = [...p.butterflies].sort((a, b) => b[1] - a[1] || nameOf(a[0]).localeCompare(nameOf(b[0])));
-        return `
+    const open = o.open === p.sci;
+    const bf = [...p.butterflies].sort((a, b) => b[1] - a[1] || nameOf(a[0]).localeCompare(nameOf(b[0])));
+    return `
       <li class="fl-row${open ? ' open' : ''}">
         <button type="button" class="fl-head" data-plant="${esc(p.sci)}" aria-expanded="${open}">
           <span class="rank">${i + 1}</span>
           <span class="fl-main">
-            <span class="fl-name">${esc(plantName(p))} <i>${esc(p.sci)}</i></span>
+            <span class="fl-name">${esc(plantName(p))} ${nativeTag(p.status)}<i>${esc(p.sci)}</i></span>
             <span class="fl-nums">${seenText(p.n, p.people.size)} · ${plural(p.butterflies.size, 'kind')} of butterfly</span>
           </span>
         </button>
         ${open ? `<ul class="fl-bf" aria-label="Butterflies seen at ${esc(plantName(p))}">${bf.map(([b, n]) =>
-          `<li><span>${esc(nameOf(b))}</span><span class="n">${fmt(n)}</span></li>`).join('')}</ul>` : ''}
+      `<li><span>${esc(nameOf(b))}</span><span class="n">${fmt(n)}</span></li>`).join('')}</ul>` : ''}
       </li>`;
-      }).join('')}
+  }).join('')}
     </ol>
     ${list.length > FLOWERS_DRAWER_FIRST ? `<button class="link-btn more-btn" type="button" id="flAll">${o.all ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
     <p class="note">These are flowers where people photographed butterflies feeding, across British Columbia, ${flowerYears()}.
       Common plants along roads and in fields show up often because they are everywhere and easy to find, not because
       butterflies like them best. This is not a planting list.</p>
-    <p class="cite">Records: research-grade iNaturalist observations (CC0, CC BY or CC BY-NC), &copy; their observers.</p>`;
+    <p class="cite">Records: research-grade iNaturalist observations (CC0, CC BY or CC BY-NC), &copy; their observers.
+      ${VASCAN_CREDIT}</p>`;
 }
 
 // ===== Host plants: what caterpillars eat (B.C. Host Plants list, all of BC) =====
@@ -988,7 +1078,7 @@ const HOSTS_FIRST = 8;   // host plants shown in a butterfly's detail before "Sh
 const HOST_LIST_URL = 'https://butterflies.deedesie.com/b-c-host-plants/';
 
 function buildHosts(d) {
-  const plants = d.plants.map(([sci, common]) => ({ sci, common, butterflies: [] }));
+  const plants = d.plants.map(([sci, common, status]) => ({ sci, common, status, butterflies: [] }));
   const byButterfly = {};   // butterfly sci -> its plants
   for (const [b, p] of d.rows) {
     plants[p].butterflies.push(b);
@@ -1018,7 +1108,7 @@ function hostsForHTML(s) {
     <h5 class="plants-sub">Plants its caterpillars eat</h5>
     <p class="chart-sub">${plural(list.length, 'plant')} listed for British Columbia</p>
     <ul class="plants flowers">${shown.map(p => `
-      <li><span class="fl-name">${esc(plantName(p))} ${hostSci(p)}</span></li>`).join('')}
+      <li><span class="fl-name">${esc(plantName(p))} ${nativeTag(p.status)}${hostSci(p)}</span></li>`).join('')}
     </ul>
     ${list.length > HOSTS_FIRST ? `<button class="link-btn more-btn" type="button" id="hostsAll">${state.hostsAll ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
     <p class="cite">${hostSource()}
@@ -1043,7 +1133,7 @@ function hostsDrawerHTML() {
         <button type="button" class="fl-head" data-plant="${esc(key)}" aria-expanded="${open}">
           <span class="rank">${i + 1}</span>
           <span class="fl-main">
-            <span class="fl-name">${esc(plantName(p))} ${hostSci(p)}</span>
+            <span class="fl-name">${esc(plantName(p))} ${nativeTag(p.status)}${hostSci(p)}</span>
             <span class="fl-nums">Food for ${plural(p.butterflies.length, 'kind')} of butterfly</span>
           </span>
         </button>
@@ -1055,7 +1145,7 @@ function hostsDrawerHTML() {
     ${list.length > FLOWERS_DRAWER_FIRST ? `<button class="link-btn more-btn" type="button" id="flAll">${o.all ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
     <p class="note">These are plants the caterpillars of BC butterflies are known to eat, gathered from field guides.
       Many are still unknown, so a butterfly may use plants not listed here.</p>
-    <p class="cite">${hostSource()}</p>`;
+    <p class="cite">${hostSource()} ${VASCAN_CREDIT}</p>`;
 }
 
 // ===== Plants drawer (Host Plants and Flowers tabs) =====
@@ -1323,6 +1413,7 @@ function showSpeciesOnMap(sci) {
 }
 function drawSpeciesDots(zoom) {
   dotLayer?.remove(); dotLayer = null;
+  drawAllDots();
   if (!state.mapped) { banner.remove(); return; }
   const pts = observations.filter(o => o.scientificName === state.mapped && (!state.year || o._year === state.year));
   const name = pts[0]?.commonName || state.mapped;

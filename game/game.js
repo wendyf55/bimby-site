@@ -128,13 +128,23 @@ function newRound() {
 // Photo credits in the data are HTML-escaped (e.g. "Libby &amp; Rick Avis"), so decode before re-escaping.
 const unescapeHTML = s => { const t = document.createElement('textarea'); t.innerHTML = s; return t.value; };
 
-// Short photo credit for under a card, e.g. "© Nick Block" (the full licence text is in its tooltip)
+// Licence code from the data: 'cc-by-nc-sa' -> 'CC BY-NC-SA', 'cc-by-sa-3.0' -> 'CC BY-SA 3.0'
+function licenceName(code) {
+  if (!code) return '';
+  if (code === 'pd') return 'Public domain';
+  if (code === 'cc0') return 'CC0';
+  const m = /^cc-([a-z-]+?)(?:-(\d\.\d))?$/.exec(code);
+  return m ? `CC ${m[1].toUpperCase()}${m[2] ? ' ' + m[2] : ''}` : code.toUpperCase();
+}
+
+// Short photo credit for under a card, e.g. "© Nick Block · CC BY-NC" (the full credit is in its tooltip)
 function photoCredit(p) {
   const a = unescapeHTML(p.attribution || '');
+  const lic = licenceName(p.license) ? ` · ${licenceName(p.license)}` : '';
   let m = /^\(c\)\s*(?:\d{4}\s+)?([^,]+)/i.exec(a);
-  if (m) return `© ${m[1].trim()}`;
+  if (m) return `© ${m[1].trim()}${lic}`;
   m = /uploaded by (.+)$/i.exec(a);                     // public-domain (CC0) iNaturalist photos
-  return `Photo: ${(m ? m[1] : a.split(',')[0]).trim()}`;
+  return `Photo: ${(m ? m[1] : a.split(',')[0]).trim()}${lic}`;
 }
 
 function renderPanel() {
@@ -144,15 +154,17 @@ function renderPanel() {
     <p class="sub">All ${n} species below were recorded within ${AREA_KM} km of one spot in British Columbia
       in the last ${YEARS_BACK} years. ${TOUCH ? 'Tap' : 'Click'} the map where you think that spot is, then press Reveal.</p>
     <ul class="g-list">${game.species.map(s => {
-      const p = photos[s.sci];
-      return `<li class="g-card">
+    const p = photos[s.sci];
+    return `<li class="g-card">
         ${p ? `<img src="${esc(p.url)}" alt="" loading="lazy">` : '<span class="g-nophoto" aria-hidden="true"></span>'}
         <div class="g-name">${esc(s.common || s.sci)}</div>
         ${s.common ? `<div class="g-sci">${esc(s.sci)}</div>` : ''}
         <div class="g-credit" title="${esc(unescapeHTML(p?.attribution || ''))}">${p ? esc(photoCredit(p)) : '&nbsp;'}</div>
       </li>`;
-    }).join('')}</ul>
-    <p class="g-note">Records from Guppy &amp; Shepard and iNaturalist. Photos from iNaturalist.</p>`;
+  }).join('')}</ul>
+    <p class="g-note">Records: Guppy &amp; Shepard, and research-grade iNaturalist observations (CC0, CC BY or CC BY-NC),
+      &copy; their observers. Photos from iNaturalist and Wikimedia Commons, &copy; their photographers, with each licence
+      shown under the photo. Full sources are under About this data on the <a href="../">map page</a>.</p>`;
 }
 
 function renderBar() {

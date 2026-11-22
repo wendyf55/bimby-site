@@ -940,6 +940,32 @@ ul.plants i {
   font-size: 14px;
 }
 
+/* Native / Not native tag next to a plant name (VASCAN) */
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  font-style: normal;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  margin: 0 6px 0 2px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.tag.native {
+  background: var(--green-100);
+  color: var(--green-800);
+  border: 1px solid #b9cba8;
+}
+
+.tag.intro {
+  background: var(--soft);
+  color: var(--dim);
+  border: 1px solid var(--line);
+}
+
 .fl-name i {
   color: var(--dim);
   margin-left: 2px;
@@ -1332,4 +1358,89 @@ details.about p {
 
 @media (prefers-reduced-motion: reduce) {
   .shape-handle.pulse::before { animation: none; }
+}
+
+/* Colour key for the all-records dots on the start screen */
+.dot-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.dot-key .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.dot-key .dot.inat {
+  background: var(--inat);
+}
+
+/* Latest sightings on iNaturalist (home page) */
+.recent {
+  margin-top: 18px;
+}
+
+.recent h3 {
+  font-size: 14px;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+
+.recent ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.recent a {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.recent a:hover,
+.recent a:focus-visible {
+  border-color: var(--green-800);
+}
+
+.recent img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex: none;
+  background: var(--soft);
+}
+
+.recent-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.recent-text i {
+  color: var(--dim);
+}
+
+.recent-date {
+  color: var(--dim);
+}
+
+.recent-text small {
+  color: var(--dim);
+  font-size: 11px;
 }

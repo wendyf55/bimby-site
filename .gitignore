@@ -4,6 +4,7 @@ data/*
 !data/ecoregions.geojson
 !data/species-info.json
 !data/observations-inat.json
+!data/inat-recent.json
 !data/inat/
 !data/plant-visits.json
 !data/host-plants.json
@@ -19,3 +20,6 @@ Occurrence_data-subset.numbers
 .DS_Store
 *.tmp
 __pycache__/
+
+scripts/photo_candidates.py
+scripts/taxon_photos.py
