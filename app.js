@@ -8,7 +8,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const THIS_MONTH = new Date().getMonth();
 const RADII = [5, 15, 30, 50];
-const INAT_PROJECT = 'https://www.inaturalist.org/projects/2026-butterflies-in-my-backyard-bimby-project';
+const INATURALIST = 'https://www.inaturalist.org/';
 const GEOCODER = 'https://nominatim.openstreetmap.org';   // OpenStreetMap place search (light use only)
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -761,7 +761,7 @@ function startHTML() {
       (${activeSources().map(k => k === 'sg' ? 'Guppy &amp; Shepard, 2001' : 'iNaturalist observers').join(' and ')}).
       Each dot on the map is one record:
       ${activeSources().map(k => `<span class="dot-key"><span class="dot ${k}"></span>${srcInfo(k).label}</span>`).join(' ')}.
-      Seen a butterfly? <a href="${INAT_PROJECT}" target="_blank" rel="noopener">Join the BIMBY project on iNaturalist</a>.</p>
+      Seen a butterfly? <a href="${INATURALIST}" target="_blank" rel="noopener">Record your observation on iNaturalist</a>.</p>
       ${flowersButton()}${recentHTML()}</div>` : ''}
     ${total ? aboutHTML() : ''}`;
 }
@@ -900,7 +900,7 @@ function listHTML() {
     const nothing = scopeObservations().species.size === 0;
     html += `<div class="empty">${nothing
       ? `No butterfly records ${where} yet. Try a bigger ${state.shape ? 'area' : 'distance'}, switch to your ecoregion, or be the first:
-         <a href="${INAT_PROJECT}" target="_blank" rel="noopener">add a sighting on iNaturalist</a>.`
+         <a href="${INATURALIST}" target="_blank" rel="noopener">add a sighting on iNaturalist</a>.`
       : state.month !== '' ? `None of these butterflies have been recorded ${where} in ${MONTHS_LONG[+state.month]} yet.
          <button class="link-btn" type="button" id="clearFly">Show all months</button>`
         : `No butterflies match “${esc(state.q)}”.`}</div>`;
