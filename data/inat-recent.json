@@ -1,6 +1,14 @@
 {
-  "built": "2026-11-21",
+  "built": "2026-11-23",
   "observations": [
+    {
+      "id": 416177989,
+      "sci": "Nymphalis californica",
+      "common": "California Tortoiseshell",
+      "date": "2026-11-21",
+      "photo": "https://inaturalist-open-data.s3.amazonaws.com/photos/766416665/small.jpg",
+      "credit": "(c) rolyrussell, some rights reserved (CC BY-NC)"
+    },
     {
       "id": 415143496,
       "sci": "Vanessa cardui",
@@ -26,20 +34,12 @@
       "credit": "(c) jenmatthews, some rights reserved (CC BY-NC)"
     },
     {
-      "id": 412678079,
+      "id": 416610106,
       "sci": "Pieris rapae",
       "common": "Small White",
-      "date": "2026-11-03",
-      "photo": "https://inaturalist-open-data.s3.amazonaws.com/photos/759398104/small.jpg",
-      "credit": "(c) jenmatthews, some rights reserved (CC BY-NC)"
-    },
-    {
-      "id": 412452690,
-      "sci": "Vanessa annabella",
-      "common": "West Coast Lady",
-      "date": "2026-11-01",
-      "photo": "https://inaturalist-open-data.s3.amazonaws.com/photos/758939582/small.jpg",
-      "credit": "(c) knechtel, some rights reserved (CC BY-NC)"
+      "date": "2026-11-07",
+      "photo": "https://inaturalist-open-data.s3.amazonaws.com/photos/767279786/small.jpg",
+      "credit": "(c) Nathan Earley, some rights reserved (CC BY-NC)"
     }
   ]
 }
