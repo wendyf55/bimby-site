@@ -65,8 +65,7 @@ const map = L.map('map', {
   zoomSnap: 0.25, maxBounds: VIEW_BOUNDS, maxBoundsViscosity: 1.0, worldCopyJump: false,
   wheelPxPerZoomLevel: 240,   // scroll wheel / trackpad: smaller zoom steps (Leaflet default 60)
 }).fitBounds(BC_BOUNDS);
-// Leaflet throws away scrolling that arrives while a zoom is still animating (~0.25 s), so fast
-// scrolling feels stuck and then jumps. Keep that scrolling and apply it as soon as the zoom ends.
+// zoom scrolling
 (() => {
   const wheel = map.scrollWheelZoom, perform = wheel._performZoom;
   let waiting = false;
@@ -154,6 +153,33 @@ function drainTiles() {                              // draw tiles for ~8 ms, th
   while (tileQueue.length && performance.now() < end) tileQueue.shift()();
   if (tileQueue.length) setTimeout(drainTiles, 0);
 }
+// Dot size (radius, px) by zoom: small when zoomed out so areas don't turn solid, bigger when zoomed in
+const dotRadius = z => z < 7 ? 1.5 : z < 9 ? 2 : z < 11 ? 3 : z < 13 ? 4 : 5;
+const DOT_COLOR = { sg: '#ff8c1a', inat: '#1a73e8' };   // same as --sg / --inat in styles.css
+const dotAlpha = z => z < 11 ? 0.55 : 0.9;           // see-through zoomed out so town names stay readable
+// Guppy & Shepard records are triangles, iNat records circles (also tells them apart without colour).
+// TRI: centre-to-corner of a triangle with the same area as a circle of radius 1.
+const TRI = 1.55;
+function triPath(ctx, x, y, R) {
+  const h = R * 0.866;
+  ctx.moveTo(x, y - R); ctx.lineTo(x + h, y + R / 2); ctx.lineTo(x - h, y + R / 2); ctx.closePath();
+}
+// Triangle version of L.circleMarker (canvas renderer only), for one butterfly's G&S records
+L.Canvas.include({
+  _updateTriangle(layer) {
+    if (!this._drawing || layer._empty()) return;
+    this._ctx.beginPath();
+    triPath(this._ctx, layer._point.x, layer._point.y, layer._radius * TRI);
+    this._fillStroke(this._ctx, layer);
+  },
+});
+const TriangleMarker = L.CircleMarker.extend({
+  _updatePath() { this._renderer._updateTriangle(this); },
+  _updateBounds() {
+    const r = this._radius * TRI + this._clickTolerance();
+    this._pxBounds = L.bounds(this._point.subtract([r, r]), this._point.add([r, r]));
+  },
+});
 const CELL = 0.1;                                    // index cell size, degrees
 const cellKey = (i, j) => (i + 1000) * 4000 + (j + 2000);
 const AllDots = L.GridLayer.extend({
@@ -189,17 +215,18 @@ const AllDots = L.GridLayer.extend({
   _drawTile(tile, coords) {
     const size = this.getTileSize();
     tile.width = size.x; tile.height = size.y;
-    const ctx = tile.getContext('2d'), z = coords.z, r = z < 7 ? 1.5 : z < 9 ? 2 : 3;
-    const nw = coords.scaleBy(size), pad = r + 1, k = 2 ** z;   // k: zoom-0 pixels -> pixels at this zoom
+    const ctx = tile.getContext('2d'), z = coords.z, r = dotRadius(z);
+    const nw = coords.scaleBy(size), pad = r * TRI + 1, k = 2 ** z;   // k: zoom-0 pixels -> pixels at this zoom
     const b = L.latLngBounds(map.unproject(nw.subtract([pad, pad]), z), map.unproject(nw.add(size).add([pad, pad]), z));
     for (const key of ['sg', 'inat']) {               // iNat drawn last (on top)
-      ctx.fillStyle = key === 'inat' ? '#3f7cac' : '#e79a3c';
+      ctx.fillStyle = DOT_COLOR[key];
       ctx.beginPath();
       this.eachIn(key, b, o => {
         const x = o._x * k - nw.x, y = o._y * k - nw.y;
-        ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 2 * Math.PI);
+        if (key === 'sg') triPath(ctx, x, y, r * TRI);
+        else { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 2 * Math.PI); }
       });
-      ctx.globalAlpha = 0.7; ctx.fill();
+      ctx.globalAlpha = dotAlpha(z); ctx.fill();
     }
   },
 });
@@ -218,7 +245,7 @@ function drawAllDots() {
 // the pointer with links to iNaturalist. Before that (start screen) clicks always choose a spot
 function inatDotsAt(latlng, slack = 3) {
   if (!state.point || draw || !allDotsLayer) return [];
-  const z = map.getZoom(), r = (z < 7 ? 1.5 : z < 9 ? 2 : 3) + slack;   // dot radius + a little room
+  const r = dotRadius(Math.round(map.getZoom())) + slack;   // dot radius (tiles use the rounded zoom) + a little room
   const c = map.latLngToContainerPoint(latlng);
   const nw = map.containerPointToLatLng(c.subtract([r, r])), se = map.containerPointToLatLng(c.add([r, r]));
   const hits = [];
@@ -1502,8 +1529,8 @@ function drawSpeciesDots(zoom) {
   const pts = observations.filter(o => o.scientificName === state.mapped && (!state.year || o._year === state.year));
   const name = pts[0]?.commonName || state.mapped;
   dotLayer = L.layerGroup(pts.map(o => {
-    const m = L.circleMarker([o.lat, o.lng], {
-      renderer: dotRenderer, radius: 4, weight: 1, color: '#ffffff', fillColor: o.source === 'inat' ? '#3f7cac' : '#e79a3c', fillOpacity: 0.9,
+    const m = new (o.source === 'sg' ? TriangleMarker : L.CircleMarker)([o.lat, o.lng], {
+      renderer: dotRenderer, radius: 4, weight: 1, color: '#ffffff', fillColor: DOT_COLOR[o.source], fillOpacity: 0.9,
       bubblingMouseEvents: o.source !== 'inat',   // iNat dots open a popup instead of moving your spot
     }).bindTooltip(`${esc(name)} · ${fmtDate(o.observedOn)} · ${srcInfo(o.source).short}`);
     if (o.source === 'inat') m.bindPopup(`${esc(name)}<br>${fmtDate(o.observedOn)}${o.obscured ? ' <small>(location blurred)</small>' : ''}<br>

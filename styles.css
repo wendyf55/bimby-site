@@ -10,8 +10,10 @@
   --accent: #e79a3c;
   --accent-ink: #2b1d06;
   --link: #8a4a0c;
-  --inat: #3f7cac;
+  --inat: #1a73e8;
   /* iNaturalist dots on the map */
+  --sg: #ff8c1a;
+  /* Guppy & Shepard dots on the map */
 
   --bg: #fbfaf6;
   --ink: #1f261b;
@@ -1188,7 +1190,7 @@ details.about p {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--sg);
   border: 1px solid #fff;
 }
 
@@ -1386,7 +1388,7 @@ details.about p {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--sg);
 }
 
 .dot-key .dot.inat {
@@ -1484,4 +1486,12 @@ details.about p {
 .dot-popup .link-btn {
   margin-top: 8px;
   padding: 0;
+}
+
+/* Guppy & Shepard records are triangles on the map, so their key is a triangle too */
+.map-banner .dot.sg,
+.dot-key .dot.sg {
+  border: 0;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
