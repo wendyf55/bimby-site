@@ -130,7 +130,8 @@ banner.onAdd = () => { const d = L.DomUtil.create('div', 'map-banner'); L.DomEve
 // ===== Records as small dots =====
 // Start screen: every record. Once a spot or area is chosen: only the records counted in the panel
 // (inside the circle, drawn area or ecoregion, same year and source filters).
-// Drawn tile by tile on canvas so ~150k points stay fast. Not clickable: clicks go through to the map.
+// Drawn tile by tile on canvas so ~150k points stay fast. The canvas itself isn't clickable; once a spot
+// is chosen, map clicks on an iNat dot open its links instead (see inatDotsAt below).
 // Hidden while a single butterfly's dots are shown.
 map.createPane('allDots').style.zIndex = 350;
 map.getPane('allDots').style.pointerEvents = 'none';
@@ -164,12 +165,47 @@ function drawAllDots() {
   }
 }
 
+// Once a spot is chosen, the iNat dots in the area can be clicked: a popup lists the records under
+// the pointer with links to iNaturalist. Before that (start screen) clicks always choose a spot,
+// since the dots cover whole cities when zoomed out.
+function inatDotsAt(latlng, slack = 3) {
+  if (!state.point || draw || !allDotsPts) return [];
+  const z = map.getZoom(), r = (z < 7 ? 1.5 : z < 9 ? 2 : 3) + slack;   // dot radius + a little room
+  const c = map.latLngToContainerPoint(latlng);
+  const nw = map.containerPointToLatLng(c.subtract([r, r])), se = map.containerPointToLatLng(c.add([r, r]));
+  const hits = [];
+  for (const o of allDotsPts) {
+    if (o.source !== 'inat' || o.lat > nw.lat || o.lat < se.lat || o.lng < nw.lng || o.lng > se.lng) continue;
+    if (map.latLngToContainerPoint([o.lat, o.lng]).distanceTo(c) <= r) hits.push(o);
+  }
+  return hits.sort((a, b) => (b.observedOn || '').localeCompare(a.observedOn || ''));
+}
+function openDotPopup(latlng, hits) {
+  const MAX = 10, d = document.createElement('div');
+  d.className = 'dot-popup';
+  d.innerHTML = `<ul>${hits.slice(0, MAX).map(o => `<li>${esc(o.commonName || o.scientificName)}<br>${fmtDate(o.observedOn)}${o.obscured ? ' <small>(location blurred)</small>' : ''}<br>
+      <a href="https://www.inaturalist.org/observations/${encodeURIComponent(o.rid)}" target="_blank" rel="noopener">View on iNaturalist</a></li>`).join('')}</ul>
+    ${hits.length > MAX ? `<p><small>${fmt(hits.length - MAX)} more here; zoom in to see them</small></p>` : ''}
+    <button type="button" class="link-btn">Choose this spot instead</button>`;
+  d.querySelector('button').addEventListener('click', () => { map.closePopup(); setPoint(latlng, null, false); });   // false = zoom in, like a search
+  L.popup({ maxHeight: 260 }).setLatLng(latlng).setContent(d).openOn(map);
+}
+
 map.on('click', e => {
   const t = e.originalEvent?.target;
   if (t && (!t.isConnected || t.closest('.leaflet-control'))) return;   // a click on a map button, not the map
-  draw ? addCorner(e.latlng) : setPoint(e.latlng, null, true);
+  if (draw) return addCorner(e.latlng);
+  const hits = inatDotsAt(e.latlng, e.originalEvent?.pointerType === 'touch' ? 8 : 3);
+  hits.length ? openDotPopup(e.latlng, hits) : setPoint(e.latlng, null, false);   // false = zoom in, like a search
 });
-map.on('mousemove', e => { if (draw) { draw.cursor = e.latlng; updateGuide(); } });
+let dotHoverQueued = false;
+map.on('mousemove', e => {
+  if (draw) { draw.cursor = e.latlng; updateGuide(); return; }
+  if (dotHoverQueued) return;
+  dotHoverQueued = true;
+  requestAnimationFrame(() => { dotHoverQueued = false; map.getContainer().classList.toggle('on-dot', inatDotsAt(e.latlng).length > 0); });
+});
+map.on('mouseout', () => map.getContainer().classList.remove('on-dot'));
 map.on('dblclick', () => { if (draw) finishDrawing(); });
 
 // ===== Load data =====
@@ -796,7 +832,8 @@ function aboutHTML() {
     <details class="about">
       <summary>About this data</summary>
       <p>Guppy &amp; Shepard records (${srcMeta.sg?.years ? srcMeta.sg.years.join('&ndash;') + ', ' : ''}British Columbia) come from the occurrence data compiled for
-        Guppy, C., &amp; Shepard, J. (2001). <i>Butterflies of British Columbia: Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern Oregon, Northern Idaho, and Northwestern Montana</i>. UBC Press.</p>
+        Guppy, C., &amp; Shepard, J. (2001). Authors continued adding to this dataset after publication. 
+        <i>Butterflies of British Columbia: Including Western Alberta, Southern Yukon, the Alaska Panhandle, Washington, Northern Oregon, Northern Idaho, and Northwestern Montana</i>. UBC Press.</p>
       ${loaded.includes('inat') ? `<p>iNaturalist records are research-grade butterfly observations in British Columbia
         (identifications agreed by the community), refreshed twice a week${srcMeta.inat.asOf ? `; last updated ${fmtDate(srcMeta.inat.asOf.slice(0, 10))}` : ''}.
         Observations are &copy; their observers, used under the licence each observer chose

@@ -1449,3 +1449,30 @@ details.about p {
   color: var(--dim);
   font-size: 11px;
 }
+
+/* ---------- Clickable iNat dots (once a spot is chosen) ---------- */
+.leaflet-container.on-dot,
+.leaflet-container.on-dot .leaflet-grab {
+  cursor: pointer;
+}
+
+.dot-popup ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dot-popup li + li {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e3e3dc;
+}
+
+.dot-popup p {
+  margin: 8px 0 0;
+}
+
+.dot-popup .link-btn {
+  margin-top: 8px;
+  padding: 0;
+}

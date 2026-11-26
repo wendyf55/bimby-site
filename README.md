@@ -11,18 +11,6 @@ over the years, and which plants each butterfly uses. A small guessing game uses
   `main` branch)
 - **iNaturalist project (2026):** <https://www.inaturalist.org/projects/2026-butterflies-in-my-backyard-bimby-project>
 
-## TODO
-
-- Get pictures and descriptions from G + S. Right now 6 butterflies have no
-  description and 2 have no photo; see [Species descriptions & photos](#species-descriptions--photos).
-- Move the repository to the project's own GitHub account. GitHub Pages and the
-  iNaturalist workflow need to be switched on again there (see [Deployment](#deployment)).
-- Buy a domain and point it at GitHub Pages.
-- A few butterflies go by different names in the two sources (e.g. *Plebejus
-  scudderii* vs *P. idas / anna / melissa*), so they may show up twice when both sources
-  are shown. Create a list of name-mismatches for review; any merge needs a source for each name.
-- Check the licence for the ecoregion dataset.
-
 ## Running locally
 
 The site is plain HTML, CSS and JavaScript with no build step. It has to be served over
@@ -295,22 +283,6 @@ Map tiles © OpenStreetMap contributors. Map library: Leaflet 1.9.4.
   - a butterfly's detail (both plant tabs);
   - both drawers;
   - the game, on a phone-sized window too.
-
-## Deployment
-
-GitHub Pages serves the `main` branch from the repo root (Settings → Pages). `.nojekyll`
-stops GitHub from processing the files.
-
-When the repository moves to another account:
-
-1. Turn Pages on there.
-2. Allow the workflow to write to the repo (Settings → Actions → General → Workflow
-   permissions → "Read and write permissions").
-3. Expect the first iNaturalist run to do a full download, since the Actions cache doesn't
-   move with the repo.
-
-For a custom domain, add it under Settings → Pages (GitHub then creates a `CNAME` file)
-and set up the DNS records GitHub lists.
 
 ## Licences
 
