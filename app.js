@@ -62,8 +62,21 @@ const BC_BOUNDS = [[48.2, -139.1], [60.0, -114.0]];   // British Columbia
 const NA_BOUNDS = [[7.0, -170.0], [84.0, -50.0]];      // North America: only these map tiles are drawn
 const VIEW_BOUNDS = [[44.0, -152.0], [65.0, -100.0]];  // BC plus a margin: how far the map can be panned
 const map = L.map('map', {
-  zoomSnap: 0.25, maxBounds: VIEW_BOUNDS, maxBoundsViscosity: 1.0, worldCopyJump: false
+  zoomSnap: 0.25, maxBounds: VIEW_BOUNDS, maxBoundsViscosity: 1.0, worldCopyJump: false,
+  wheelPxPerZoomLevel: 240,   // scroll wheel / trackpad: smaller zoom steps (Leaflet default 60)
 }).fitBounds(BC_BOUNDS);
+// Leaflet throws away scrolling that arrives while a zoom is still animating (~0.25 s), so fast
+// scrolling feels stuck and then jumps. Keep that scrolling and apply it as soon as the zoom ends.
+(() => {
+  const wheel = map.scrollWheelZoom, perform = wheel._performZoom;
+  let waiting = false;
+  wheel._performZoom = function () {
+    if (!map._animatingZoom) return perform.call(this);
+    if (waiting) return;
+    waiting = true;
+    map.once('zoomend', () => { waiting = false; if (this._delta) perform.call(this); });
+  };
+})();
 // Don't let people zoom out past "all of BC" (re-checked when the map changes size)
 function lockZoomToBC() {
   map.setMinZoom(Math.max(0, map.getBoundsZoom(BC_BOUNDS) - 0.5));
@@ -130,29 +143,64 @@ banner.onAdd = () => { const d = L.DomUtil.create('div', 'map-banner'); L.DomEve
 // ===== Records as small dots =====
 // Start screen: every record. Once a spot or area is chosen: only the records counted in the panel
 // (inside the circle, drawn area or ecoregion, same year and source filters).
-// Drawn tile by tile on canvas so ~150k points stay fast. The canvas itself isn't clickable; once a spot
+// Drawn tile by tile on canvas (~150k points should stay fast) The canvas itself isn't clickable; once a spot
 // is chosen, map clicks on an iNat dot open its links instead (see inatDotsAt below).
 // Hidden while a single butterfly's dots are shown.
 map.createPane('allDots').style.zIndex = 350;
 map.getPane('allDots').style.pointerEvents = 'none';
+const tileQueue = [];
+function drainTiles() {                              // draw tiles for ~8 ms, then let the page respond
+  const end = performance.now() + 8;
+  while (tileQueue.length && performance.now() < end) tileQueue.shift()();
+  if (tileQueue.length) setTimeout(drainTiles, 0);
+}
+const CELL = 0.1;                                    // index cell size, degrees
+const cellKey = (i, j) => (i + 1000) * 4000 + (j + 2000);
 const AllDots = L.GridLayer.extend({
-  createTile(coords) {
-    const tile = document.createElement('canvas'), size = this.getTileSize();
+  initialize(options) {
+    L.GridLayer.prototype.initialize.call(this, options);
+    this._cells = { sg: new Map(), inat: new Map() };  // source -> cell -> records
+    for (const o of options.points) {
+      const g = this._cells[o.source];
+      if (!g) continue;
+      if (o._x === undefined) { const p = map.project([o.lat, o.lng], 0); o._x = p.x; o._y = p.y; }   // pixels at zoom 0
+      const k = cellKey(Math.floor(o.lat / CELL), Math.floor(o.lng / CELL));
+      let c = g.get(k);
+      if (!c) g.set(k, c = []);
+      c.push(o);
+    }
+  },
+  // Call fn for each record of one source inside the bounds
+  eachIn(key, b, fn) {
+    const g = this._cells[key], s = b.getSouth(), n = b.getNorth(), w = b.getWest(), e = b.getEast();
+    for (let i = Math.floor(s / CELL); i <= Math.floor(n / CELL); i++) {
+      for (let j = Math.floor(w / CELL); j <= Math.floor(e / CELL); j++) {
+        const c = g.get(cellKey(i, j));
+        if (c) for (const o of c) if (o.lat >= s && o.lat <= n && o.lng >= w && o.lng <= e) fn(o);
+      }
+    }
+  },
+  createTile(coords, done) {   // drawn a few at a time (see drainTiles), so the page doesn't freeze
+    const tile = document.createElement('canvas');
+    tileQueue.push(() => { this._drawTile(tile, coords); done(null, tile); });
+    if (tileQueue.length === 1) setTimeout(drainTiles, 0);
+    return tile;
+  },
+  _drawTile(tile, coords) {
+    const size = this.getTileSize();
     tile.width = size.x; tile.height = size.y;
     const ctx = tile.getContext('2d'), z = coords.z, r = z < 7 ? 1.5 : z < 9 ? 2 : 3;
-    const nw = coords.scaleBy(size), pad = r + 1;
+    const nw = coords.scaleBy(size), pad = r + 1, k = 2 ** z;   // k: zoom-0 pixels -> pixels at this zoom
     const b = L.latLngBounds(map.unproject(nw.subtract([pad, pad]), z), map.unproject(nw.add(size).add([pad, pad]), z));
     for (const key of ['sg', 'inat']) {               // iNat drawn last (on top)
       ctx.fillStyle = key === 'inat' ? '#3f7cac' : '#e79a3c';
       ctx.beginPath();
-      for (const o of this.options.points) {
-        if (o.source !== key || o.lat < b.getSouth() || o.lat > b.getNorth() || o.lng < b.getWest() || o.lng > b.getEast()) continue;
-        const p = map.project([o.lat, o.lng], z).subtract(nw);
-        ctx.moveTo(p.x + r, p.y); ctx.arc(p.x, p.y, r, 0, 2 * Math.PI);
-      }
+      this.eachIn(key, b, o => {
+        const x = o._x * k - nw.x, y = o._y * k - nw.y;
+        ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 2 * Math.PI);
+      });
       ctx.globalAlpha = 0.7; ctx.fill();
     }
-    return tile;
   },
 });
 let allDotsLayer = null, allDotsPts = null;
@@ -165,19 +213,18 @@ function drawAllDots() {
   }
 }
 
-// Once a spot is chosen, the iNat dots in the area can be clicked: a popup lists the records under
-// the pointer with links to iNaturalist. Before that (start screen) clicks always choose a spot,
-// since the dots cover whole cities when zoomed out.
+// Once a spot is chosen, the iNat dots in the area can be clicked:
+//  popup lists the records under
+// the pointer with links to iNaturalist. Before that (start screen) clicks always choose a spot
 function inatDotsAt(latlng, slack = 3) {
-  if (!state.point || draw || !allDotsPts) return [];
+  if (!state.point || draw || !allDotsLayer) return [];
   const z = map.getZoom(), r = (z < 7 ? 1.5 : z < 9 ? 2 : 3) + slack;   // dot radius + a little room
   const c = map.latLngToContainerPoint(latlng);
   const nw = map.containerPointToLatLng(c.subtract([r, r])), se = map.containerPointToLatLng(c.add([r, r]));
   const hits = [];
-  for (const o of allDotsPts) {
-    if (o.source !== 'inat' || o.lat > nw.lat || o.lat < se.lat || o.lng < nw.lng || o.lng > se.lng) continue;
+  allDotsLayer.eachIn('inat', L.latLngBounds(nw, se), o => {
     if (map.latLngToContainerPoint([o.lat, o.lng]).distanceTo(c) <= r) hits.push(o);
-  }
+  });
   return hits.sort((a, b) => (b.observedOn || '').localeCompare(a.observedOn || ''));
 }
 function openDotPopup(latlng, hits) {
